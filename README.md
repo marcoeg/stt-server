@@ -242,6 +242,24 @@ Error response includes detailed error messages:
    - Configure batch processing if needed
    - Monitor and adjust resource allocation
 
+### Load test results
+| Concurrency | Avg Latency | P95 Latency | Error Rate | % Change |
+|-------------|-------------|-------------|------------|----------|
+| 4           | 0.90       | 0.00       | 0.0%      | +5.9%    |
+| 8           | 0.99       | 0.00       | 0.0%      | -12.4%   |
+| 16          | 0.75       | 0.00       | 0.0%      | +1.4%    |
+| 32          | 1.31       | 2.33       | 0.0%      | -9.7%    |
+| 64          | 2.52       | 4.57       | 0.0%      | -5.6%    |
+| 128         | 4.99       | 9.19       | 0.0%      | -2.9%    |
+| 192         | 7.55       | 14.27      | 0.0%      | +0.1%    |
+| 256         | 10.10      | 19.00      | 0.0%      | 0%       |
+| 512         | 20.20      | 38.27      | 0.0%      | +0.5%    |
+
+```
+GPU Information:
+Model: NVIDIA RTX 5000 Ada Generation Laptop GPU
+Total Memory: 16 GB
+```
 ## License
 
 Proprietary software. Copyright (c) 2024 Graziano Labs Corp. All rights reserved.

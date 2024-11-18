@@ -70,7 +70,7 @@ cd whisper-serve
 
 2. Create and activate a virtual environment:
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  
 ```
 
@@ -242,7 +242,7 @@ Error response includes detailed error messages:
    - Configure batch processing if needed
    - Monitor and adjust resource allocation
 
-### Load test results
+### Load Test Results
 | Concurrency | Avg Latency | P95 Latency | Error Rate | % Change |
 |-------------|-------------|-------------|------------|----------|
 | 4           | 0.90       | 0.00       | 0.0%      | +5.9%    |
@@ -259,6 +259,25 @@ Error response includes detailed error messages:
 GPU Information:
 Model: NVIDIA RTX 5000 Ada Generation Laptop GPU
 Total Memory: 16 GB
+```
+---
+| Concurrency | Avg Latency (s) | P95 Latency (s) | Error Rate (%) |
+|-------------|-----------------|-----------------|----------------|
+| 4           | 0.61            | 0.00            | 0.0%           |
+| 8           | 0.93            | 0.00            | 0.0%           |
+| 16          | 0.85            | 0.00            | 0.0%           |
+| 32          | 1.11            | 1.99            | 0.0%           |
+| 64          | 2.38            | 4.20            | 0.0%           |
+| 128         | 4.31            | 8.03            | 0.0%           |
+| 192         | 6.87            | 12.88           | 0.0%           |
+| 256         | 9.04            | 16.88           | 0.0%           |
+| 512         | 17.63           | 33.19           | 0.0%           |
+
+
+```
+GPU Information:
+Model: NVIDIA GeForce RTX 4090
+Total Memory: 24 GB
 ```
 ## License
 

@@ -27,6 +27,8 @@ share/python-wheels/
 MANIFEST
 models/
 venv/
+whisper_serve.egg-info/
+whisper_service.log
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

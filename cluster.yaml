@@ -15,6 +15,7 @@ provider:
 
 auth:
     ssh_user: ubuntu
+    ssh_private_key: ~/.ssh/ray-cluster.pem
 
 # Provider-specific config for the head node, e.g. instance type.
 available_node_types:

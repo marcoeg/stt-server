@@ -344,14 +344,54 @@ Project Link: [https://github.com/yourusername/whisper-serve](https://github.com
 
 -----
 
-based on OpenAI Whisper Open Source model
-https://github.com/openai/whisper/tree/main
+For deploying to a cluster, the main differences would be:
 
-# Install openai-whisper
-pip install openai-whisper
+1. **Ray Cluster Setup**:
+   - Replace local `ray.init()` with cluster connection
+   - Use Ray's cluster configuration YAML
+   - Define node resources and roles (head/worker nodes)
+   - Configure cross-node networking
 
-# First install the other requirements
-pip install -r requirements.txt
+2. **Resource Management**:
+   - Add node affinity for GPU workloads
+   - Configure per-node replica placement
+   - Adjust memory settings for distributed setup
+   - Handle cross-node resource allocation
 
-# Then install Ray with Serve
-pip install -U "ray[default,serve]"
+3. **Model Management**:
+   - Implement model sharding across nodes
+   - Add model synchronization mechanisms
+   - Configure model caching per node
+   - Handle model replication strategy
+
+4. **Networking**:
+   - Add load balancer configuration
+   - Configure inter-node communication
+   - Handle cross-node request routing
+   - Implement service discovery
+
+5. **Monitoring & Logging**:
+   - Add distributed tracing
+   - Implement cluster-wide logging
+   - Add node health monitoring
+   - Configure metrics aggregation
+
+6. **Fault Tolerance**:
+   - Add node failure handling
+   - Implement request retry logic
+   - Configure fallback strategies
+   - Handle partial cluster failures
+
+7. **Configuration**:
+   - Add cluster-specific configurations
+   - Handle per-node settings
+   - Configure resource distribution
+   - Add deployment strategies
+
+Most of the application code would remain the same, with changes primarily in:
+- Initialization and setup code
+- Resource configuration
+- Deployment scripts
+- Monitoring setup
+
+The core transcription logic would be unchanged.

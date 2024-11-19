@@ -1,0 +1,96 @@
+# An unique identifier for the head node and workers of this cluster.
+cluster_name: whisper-serve-cluster
+
+# The maximum number of workers nodes to launch in addition to the head node.
+max_workers: 4
+
+# Cloud-provider specific configuration.
+provider:
+    type: aws
+    region: us-west-2
+    availability_zone: us-west-2a
+    cache_stopped_nodes: False
+    key_pair:
+        key_name: ray-cluster
+
+auth:
+    ssh_user: ubuntu
+
+# Provider-specific config for the head node, e.g. instance type.
+available_node_types:
+    head_node:
+        min_workers: 0
+        max_workers: 0
+        node_config:
+            InstanceType: t3.2xlarge
+            ImageId: ami-05c1fa8c9881244b6  # Deep Learning Base Proprietary Nvidia Driver GPU AMI
+            SubnetId: subnet-c00ae9a6
+            SecurityGroupIds: ["sg-030176ebd4455dcc5"]
+            KeyName: ray-cluster
+            IamInstanceProfile:
+                Arn: arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                      VolumeSize: 100
+    gpu_worker:
+        min_workers: 2
+        max_workers: 2
+        node_config:
+            InstanceType: g5.2xlarge
+            ImageId: ami-05c1fa8c9881244b6
+            SubnetId: subnet-c00ae9a6
+            SecurityGroupIds: ["sg-030176ebd4455dcc5"]
+            KeyName: ray-cluster
+            IamInstanceProfile:
+                Arn: arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                      VolumeSize: 100
+    cpu_worker:
+        min_workers: 2
+        max_workers: 2
+        node_config:
+            InstanceType: c5.2xlarge
+            ImageId: ami-05c1fa8c9881244b6
+            SubnetId: subnet-c00ae9a6
+            SecurityGroupIds: ["sg-030176ebd4455dcc5"]
+            KeyName: ray-cluster
+            IamInstanceProfile:
+                Arn: arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                      VolumeSize: 100
+
+
+
+# How Ray will authenticate with newly launched nodes.
+head_node_type: head_node
+
+setup_commands:
+    - sudo apt-get update
+    - sudo apt-get install -y software-properties-common
+    - sudo add-apt-repository universe
+    - sudo apt-get update
+    - sudo apt-get install -y git binutils rustc cargo pkg-config libssl-dev  # Install all dependencies
+    - git clone https://github.com/aws/efs-utils.git /tmp/efs-utils
+    - cd /tmp/efs-utils && ./build-deb.sh  # Build the package
+    - cd /tmp/efs-utils/build && sudo apt-get install -y ./amazon-efs-utils-*.deb  # Explicit path
+    - sudo mkdir -p /shared/models
+    - sudo mkdir -p /shared/logs
+    - echo "fs-08e6f8d79aaa5fd6e.efs.us-west-2.amazonaws.com:/ /shared efs _netdev,tls,iam 0 0" | sudo tee -a /etc/fstab
+    - sudo mount -a
+    - sudo chown -R ubuntu:ubuntu /shared
+    - pip install -U "ray[default,serve]" openai-whisper fastapi python-multipart soundfile
+
+# Command to start ray on the head node. You don't need to change this.
+head_start_ray_commands:
+    - ray stop
+    - ulimit -n 65536; ray start --head --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
+
+# Command to start ray on worker nodes. You don't need to change this.
+worker_start_ray_commands:
+    - ray stop
+    - ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076

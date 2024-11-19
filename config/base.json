@@ -1,0 +1,26 @@
+{
+    "server": {
+        "host": "0.0.0.0",
+        "port": 8000,
+        "dedicated_cpu": true,
+        "num_cpus": 32
+    },
+    "model": {
+        "size": "base",
+        "device": "cuda",
+        "model_dir": "models",
+        "supported_formats": [".wav", ".mp3", ".m4a", ".ogg"]
+    },
+    "deployment": {
+        "mode": "local", 
+        "num_replicas": 12,
+        "cpu_per_replica": 2.0,
+        "gpu_per_replica": 0.083,
+        "max_concurrent_queries": 64
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": "whisper_service.log"
+    }
+}

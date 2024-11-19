@@ -259,3 +259,350 @@ Most of the application code would remain the same, with changes primarily in:
 - Monitoring setup
 
 The core transcription logic would be unchanged.
+
+
+----
+zone: us-west-2
+
+key-name: ray-cluster
+vpc-id: vpc-ace332ca
+subnet-id: subnet-c00ae9a6
+
+-- Ray cluster setup
+python scripts/setup_cluster.py --key-name ray-cluster \
+                              --vpc-id vpc-ace332ca \
+                              --subnet-id subnet-c00ae9a6
+
+-- EFS setup
+python scripts/setup_efs.py --vpc-id vpc-ace332ca  --subnet-id subnet-c00ae9a6
+
+---
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ python scripts/setup_cluster.py --key-name ray-cluster                               --vpc-id vpc-ace332ca                               --subnet-id subnet-c00ae9a6
+Generated cluster configuration. To deploy:
+
+1. Create security group:
+aws ec2 create-security-group --group-name ray-sg --description 'Ray security group' --vpc-id vpc-ace332ca
+
+2. Add inbound rules:
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 6379 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 8265 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 10001 --cidr 0.0.0.0/0
+
+3. Update cluster.yaml with security group ID
+
+4. Start cluster:
+ray up cluster.yaml
+
+5. Set environment variable:
+export RAY_HEAD_ADDRESS=<head-node-ip>:10001
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 create-security-group --group-name ray-sg --description 'Ray security group' --vpc-id vpc-ace332ca
+{
+    "GroupId": "sg-030176ebd4455dcc5"
+}
+
+# Run these commands one by one, replacing <sg-id>
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 6379 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 8265 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 10001 --cidr 0.0.0.0/0
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 22 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-009b21d26699721a4",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 6379 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-002d6f392a0ffa3ec",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 6379,
+            "ToPort": 6379,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 8265 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-06af911813f94aab4",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 8265,
+            "ToPort": 8265,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 10001 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-01fe6396623f55c7e",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 10001,
+            "ToPort": 10001,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ python scripts/setup_efs.py --vpc-id vpc-ace332ca --subnet-id subnet-c00ae9a6
+Creating EFS filesystem...
+
+EFS setup complete!
+Filesystem ID: fs-08e6f8d79aaa5fd6e
+
+Mount Instructions:
+
+    # Run these commands on each cluster node:
+    
+    # 1. Install EFS utilities
+    sudo apt-get update
+    sudo apt-get -y install amazon-efs-utils
+    
+    # 2. Create mount point
+    sudo mkdir -p /shared/models
+    sudo mkdir -p /shared/logs
+    
+    # 3. Add to /etc/fstab
+    echo "fs-08e6f8d79aaa5fd6e.efs.us-west-2.amazonaws.com:/ /shared efs _netdev,tls,iam 0 0" | sudo tee -a /etc/fstab
+    
+    # 4. Mount EFS
+    sudo mount -a
+    
+    # 5. Set permissions
+    sudo chown -R ubuntu:ubuntu /shared
+    
+
+Configuration updated with EFS details.
+
+Note: Add these Ray cluster initialization commands to cluster.yaml:
+
+    setup_commands:
+        - sudo apt-get update
+        - sudo apt-get -y install amazon-efs-utils
+        - sudo mkdir -p /shared/models
+        - sudo mkdir -p /shared/logs
+        - echo "$fs-08e6f8d79aaa5fd6e.efs.us-west-2.amazonaws.com:/ /shared efs _netdev,tls,iam 0 0" | sudo tee -a /etc/fstab
+        - sudo mount -a
+        - sudo chown -R ubuntu:ubuntu /shared
+
+
+Added setup_commands to cluster.yaml.
+
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 describe-security-groups \
+    --filters "Name=vpc-id,Values=vpc-ace332ca" \
+    --query 'SecurityGroups[*].[GroupId,GroupName]' \
+    --output table
+------------------------------------------------------------
+|                  DescribeSecurityGroups                  |
++-----------------------+----------------------------------+
+|  sg-0f01875297b08e89a |  whisper-efs-sg                  |
+|  sg-0c4532a24d118de04 |  ElasticMapReduceEditors-Livy    |
+|  sg-e4fe419e          |  launch-wizard-1                 |
+|  sg-0e47380bd61d5fe96 |  ElasticMapReduce-master         |
+|  sg-d1fb44ab          |  default                         |
+|  sg-0ed4ce21de5e8ac2a |  ElasticMapReduceEditors-Editor  |
+|  sg-0de6ee4bee9b585d4 |  ElasticMapReduce-slave          |
+|  sg-062208f614031f69f |  redshift_security_group         |
+|  sg-030176ebd4455dcc5 |  ray-sg                          |
++-----------------------+----------------------------------+
+
+Let's use the latest Deep Learning Base Proprietary Nvidia Driver GPU AMI 
+since it's the most recent and doesn't include unnecessary frameworks (we'll install what we need).
+
+ImageId: ami-05c1fa8c9881244b6
+
+This AMI:
+
+Has NVIDIA drivers pre-installed
+Is optimized for GPU workloads
+Is the latest version (as of Nov 15, 2024)
+Supports both GPU and CPU instances
+Has Ubuntu 20.04 as base OS
+
+
+---- Create resources and start cluster
+
+2. Start the cluster:
+```bash
+ray up cluster.yaml
+```
+
+3. Once the cluster is up, get the head node IP:
+```bash
+ray get-head-ip cluster.yaml
+```
+
+4. Set the environment variable:
+```bash
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml):10001
+```
+
+
+
+When you run `ray up cluster.yaml`, you'll see real-time logs in your terminal showing:
+
+1. Instance Creation:
+```
+Launched a new head node
+<instance-id>
+Fetching head node public IP...
+```
+
+2. Setup Progress:
+```
+Setting up head node...
+Running setup commands...
+> sudo apt-get update
+> sudo apt-get install -y amazon-efs-utils
+...
+```
+
+3. Ray Installation:
+```
+Installing Ray...
+Running Ray setup commands...
+Starting Ray runtime...
+```
+
+
+1. Check Ray Dashboard:
+```bash
+# After cluster is up, get head node IP
+ray get-head-ip cluster.yaml
+
+# Access dashboard at:
+http://<head-node-ip>:8265
+```
+
+2. SSH into nodes:
+```bash
+# SSH to head node
+ray attach cluster.yaml
+
+ssh -i ray-cluster.pem ubuntu@54.191.127.19
+
+# View logs on head node
+tail -f /tmp/ray/session_*/logs/*
+```
+
+3. Monitor AWS:
+- EC2 Console for instance status
+- CloudWatch for metrics
+- EFS Console for mount status
+
+
+
+
+---- Resources shoutdown
+To shut down and clean up AWS resources:
+
+1. Stop the Ray cluster (this terminates EC2 instances):
+```bash
+ray down cluster.yaml
+```
+
+2. Delete the EFS filesystem:
+```bash
+# Get the mount target ID first
+aws efs describe-mount-targets --file-system-id fs-08e6f8d79aaa5fd6e
+
+# Delete mount target (repeat for each mount target)
+aws efs delete-mount-target --mount-target-id <mount-target-id>
+
+# Wait a few minutes for mount target deletion, then delete filesystem
+aws efs delete-file-system --file-system-id fs-08e6f8d79aaa5fd6e
+```
+
+3. Delete security groups:
+```bash
+# Delete Ray security group
+aws ec2 delete-security-group --group-name ray-sg
+
+# Delete EFS security group
+aws ec2 delete-security-group --group-name whisper-efs-sg
+```
+
+Would you like me to write a cleanup script that automates this process?
+
+Or should we proceed with testing the cluster first?
+
+
+---
+
+
+The updated **Network ACL (NACL)** configuration looks mostly correct, but there is one issue:
+
+---
+
+### **Current Issues**
+
+1. **Rule Number Conflict for 6379 (Redis)**:
+   - The **inbound rule for Redis (port 6379)** has the same rule number (`100`) as the **allow all outbound traffic** rule.
+   - Rule numbers in a NACL must be **unique** for both inbound and outbound rules.
+
+---
+
+
+
+
+### **Expected ACL  Configuration**
+
+After the fix, the NACL should include:
+
+#### **Inbound Rules**
+| Rule Number | Protocol | Port Range    | Action | Notes                  |
+|-------------|----------|---------------|--------|------------------------|
+| 150         | TCP      | 6379          | Allow  | Redis traffic          |
+| 110         | TCP      | 8265          | Allow  | Ray dashboard          |
+| 120         | TCP      | 10001-19999   | Allow  | Worker communication   |
+| 130         | TCP      | 2049          | Allow  | EFS (NFS) traffic      |
+| 140         | TCP      | 22            | Allow  | SSH access             |
+| 32767       | All      | All           | Deny   | Default deny all       |
+
+#### **Outbound Rules**
+| Rule Number | Protocol | Port Range    | Action | Notes                  |
+|-------------|----------|---------------|--------|------------------------|
+| 100         | All      | All           | Allow  | Internet access        |
+| 32767       | All      | All           | Deny   | Default deny all       |
+
+---
+
+### **Validation**
+1. Check the updated rules:
+   ```bash
+   aws ec2 describe-network-acls --filters "Name=association.subnet-id,Values=subnet-c00ae9a6"
+   ```

@@ -23,6 +23,7 @@ from whisper_serve.config import config
 from whisper_serve.models import ModelLoader, WhisperTranscriber
 from whisper_serve.api import WhisperAPI
 from whisper_serve.logger import logger
+import os
 
 # Global flag for graceful shutdown
 running = True
@@ -37,10 +38,13 @@ def create_deployment():
     """Create and deploy the Whisper service"""
     if ray.is_initialized():
         ray.shutdown()
-        
-    # Initialize Ray
-    ray.init(num_cpus=config["server"]["num_cpus"])
-    
+
+    # Initialize Ray with cluster support
+    ray.init(
+        address=f"ray://{os.getenv('RAY_HEAD_ADDRESS').split(':')[0]}:10001",
+        namespace="whisper_service"
+    )
+
     # Start Ray Serve
     serve.start(
         http_options={
@@ -53,13 +57,13 @@ def create_deployment():
     # Create model loader and preload the model
     model_loader = ModelLoader.remote()
     ray.get(model_loader.load_model.remote(config["model"]["size"]))
-    
+
     # Deploy the transcriber
     transcriber = WhisperTranscriber.bind(
         model_size=config["model"]["size"],
         model_loader=model_loader
     )
-    
+
     # Deploy the API
     api = WhisperAPI.bind(transcriber)
 

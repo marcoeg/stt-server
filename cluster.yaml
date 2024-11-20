@@ -1,6 +1,6 @@
 # Unique identifier for the cluster
 cluster_name: whisper-serve-cluster
-upscaling_speed: 2.0
+upscaling_speed: 1.0
 
 # Maximum number of worker nodes
 max_workers: 4
@@ -23,8 +23,8 @@ initialization_commands:
     - while pgrep unattended; do sudo pkill unattended; sleep 1; done
     - sudo systemctl stop unattended-upgrades
     - sudo systemctl disable unattended-upgrades
-    - echo 'export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=6000' >> ~/.bashrc
-    - echo 'export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=5000' >> ~/.bashrc
+    - echo 'export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=20000' >> ~/.bashrc
+    - echo 'export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=15000' >> ~/.bashrc
     - source ~/.bashrc
 
 # Node configurations
@@ -48,7 +48,7 @@ available_node_types:
                       VolumeSize: 100
 
     gpu_worker:
-        min_workers: 2
+        min_workers: 0
         max_workers: 2
         resources:
             CPU: 8
@@ -67,7 +67,7 @@ available_node_types:
                       VolumeSize: 100
 
     cpu_worker:
-        min_workers: 2
+        min_workers: 0
         max_workers: 2
         resources:
             CPU: 8
@@ -106,7 +106,8 @@ setup_commands:
 
     # Install CPU-only PyTorch (for nodes without GPUs)
     - pip uninstall -y torch torchvision torchaudio
-    - pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+    - pip install --pre torch  --index-url https://download.pytorch.org/whl/cpu
+#    - pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 
 # Setup specific to worker nodes
@@ -115,8 +116,9 @@ worker_setup_commands:
     - if lspci | grep -i nvidia; then
         echo "GPU detected. Installing GPU-compatible PyTorch.";
         pip uninstall -y torch torchvision torchaudio;
-        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121;
+        pip install --pre torch  --index-url https://download.pytorch.org/whl/nightly/cu121;
       fi
+#        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121;
 
 # Setup for the head node
 head_setup_commands:
@@ -143,9 +145,16 @@ head_setup_commands:
 # Command to start Ray on the head node
 head_start_ray_commands:
     - ray stop
-    - ulimit -n 65536; ray start --head --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
+    - export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=30000
+    - export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=15000
+    - export RAY_CLIENT_MODE=0
+    - export RAY_DASHBOARD_PORT=8265
+    - export RAY_DASHBOARD_HOST=0.0.0.0
+    - ulimit -n 65536; ray start --head --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0 --include-dashboard=true --ray-client-server-port=10001 
 
 # Command to start Ray on worker nodes
 worker_start_ray_commands:
     - ray stop
-    - ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076
+    - export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=30000
+    - export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=15000
+    - ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076 

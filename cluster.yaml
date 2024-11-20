@@ -1,10 +1,11 @@
-# An unique identifier for the head node and workers of this cluster.
+# Unique identifier for the cluster
 cluster_name: whisper-serve-cluster
+upscaling_speed: 2.0
 
-# The maximum number of workers nodes to launch in addition to the head node.
+# Maximum number of worker nodes
 max_workers: 4
 
-# Cloud-provider specific configuration.
+# Cloud provider-specific configuration
 provider:
     type: aws
     region: us-west-2
@@ -17,14 +18,25 @@ auth:
     ssh_user: ubuntu
     ssh_private_key: ~/.ssh/ray-cluster.pem
 
-# Provider-specific config for the head node, e.g. instance type.
+# Initial setup before main configuration
+initialization_commands:
+    - while pgrep unattended; do sudo pkill unattended; sleep 1; done
+    - sudo systemctl stop unattended-upgrades
+    - sudo systemctl disable unattended-upgrades
+    - echo 'export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=6000' >> ~/.bashrc
+    - echo 'export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=5000' >> ~/.bashrc
+    - source ~/.bashrc
+
+# Node configurations
 available_node_types:
     head_node:
         min_workers: 0
         max_workers: 0
+        resources:
+            CPU: 8
         node_config:
             InstanceType: t3.2xlarge
-            ImageId: ami-05c1fa8c9881244b6  # Deep Learning Base Proprietary Nvidia Driver GPU AMI
+            ImageId: ami-05c1fa8c9881244b6
             SubnetId: subnet-c00ae9a6
             SecurityGroupIds: ["sg-030176ebd4455dcc5"]
             KeyName: ray-cluster
@@ -34,9 +46,13 @@ available_node_types:
                 - DeviceName: /dev/sda1
                   Ebs:
                       VolumeSize: 100
+
     gpu_worker:
         min_workers: 2
         max_workers: 2
+        resources:
+            CPU: 8
+            GPU: 1
         node_config:
             InstanceType: g5.2xlarge
             ImageId: ami-05c1fa8c9881244b6
@@ -49,9 +65,12 @@ available_node_types:
                 - DeviceName: /dev/sda1
                   Ebs:
                       VolumeSize: 100
+
     cpu_worker:
         min_workers: 2
         max_workers: 2
+        resources:
+            CPU: 8
         node_config:
             InstanceType: c5.2xlarge
             ImageId: ami-05c1fa8c9881244b6
@@ -65,33 +84,68 @@ available_node_types:
                   Ebs:
                       VolumeSize: 100
 
-
-
-# How Ray will authenticate with newly launched nodes.
 head_node_type: head_node
 
+# Sync all relevant files in a directory
+file_mounts:
+    "/home/ubuntu/mount_files": "/home/marco/Development/mglabs/stt-server/mount_files"
+    "/home/ubuntu/.ssh/ray-cluster.pem": "~/.ssh/ray-cluster.pem"
+
+## Setup commands for all nodes
 setup_commands:
+    # System updates and dependencies
     - sudo apt-get update
     - sudo apt-get install -y software-properties-common
-    - sudo add-apt-repository universe
-    - sudo apt-get update
-    - sudo apt-get install -y git binutils rustc cargo pkg-config libssl-dev  # Install all dependencies
+    - sudo apt-get install -y git binutils rustc cargo pkg-config libssl-dev
+
+    # Upgrade pip and setuptools
+    - pip install --upgrade pip setuptools packaging
+
+    # Install Ray and related dependencies
+    - pip install -U "ray[default,serve]" openai-whisper fastapi python-multipart soundfile
+
+    # Install CPU-only PyTorch (for nodes without GPUs)
+    - pip uninstall -y torch torchvision torchaudio
+    - pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+
+# Setup specific to worker nodes
+worker_setup_commands:
+    # GPU-aware conditional setup
+    - if lspci | grep -i nvidia; then
+        echo "GPU detected. Installing GPU-compatible PyTorch.";
+        pip uninstall -y torch torchvision torchaudio;
+        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121;
+      fi
+
+# Setup for the head node
+head_setup_commands:
+    # Install EFS utilities
     - git clone https://github.com/aws/efs-utils.git /tmp/efs-utils
-    - cd /tmp/efs-utils && ./build-deb.sh  # Build the package
-    - cd /tmp/efs-utils/build && sudo apt-get install -y ./amazon-efs-utils-*.deb  # Explicit path
+    - cd /tmp/efs-utils && ./build-deb.sh
+    - cd /tmp/efs-utils/build && sudo apt-get install -y ./amazon-efs-utils-*.deb
     - sudo mkdir -p /shared/models
     - sudo mkdir -p /shared/logs
     - echo "fs-08e6f8d79aaa5fd6e.efs.us-west-2.amazonaws.com:/ /shared efs _netdev,tls,iam 0 0" | sudo tee -a /etc/fstab
     - sudo mount -a
     - sudo chown -R ubuntu:ubuntu /shared
-    - pip install -U "ray[default,serve]" openai-whisper fastapi python-multipart soundfile
 
-# Command to start ray on the head node. You don't need to change this.
+    # Ensure proper permission for the key
+    - sudo chown ubuntu:ubuntu /home/ubuntu/.ssh/ray-cluster.pem
+    - sudo chmod 400 /home/ubuntu/.ssh/ray-cluster.pem
+
+    # Install Whisper Serve package
+    - pip install /home/ubuntu/mount_files/whisper_serve-0.1.tar.gz
+
+    # Ensure config.json is in place
+    - cp /home/ubuntu/mount_files/config.json /home/ubuntu/config.json
+
+# Command to start Ray on the head node
 head_start_ray_commands:
     - ray stop
     - ulimit -n 65536; ray start --head --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
 
-# Command to start ray on worker nodes. You don't need to change this.
+# Command to start Ray on worker nodes
 worker_start_ray_commands:
     - ray stop
     - ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076

@@ -12,7 +12,7 @@
         "supported_formats": [".wav", ".mp3", ".m4a", ".ogg"]
     },
     "deployment": {
-        "mode": "cluster",
+        "mode": "local", 
         "num_replicas": 12,
         "cpu_per_replica": 2.0,
         "gpu_per_replica": 0.083,

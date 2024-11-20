@@ -1,1 +1,59 @@
-config/base.json
+{
+    "server": {
+        "host": "0.0.0.0",
+        "port": 8000,
+        "dedicated_cpu": true,
+        "num_cpus": 32
+    },
+    "model": {
+        "size": "base",
+        "device": "cuda",
+        "model_dir": "/shared/models",
+        "supported_formats": [
+            ".wav",
+            ".mp3",
+            ".m4a",
+            ".ogg"
+        ]
+    },
+    "deployment": {
+        "mode": "cluster",
+        "num_replicas": 12,
+        "cpu_per_replica": 2.0,
+        "gpu_per_replica": 0.083,
+        "max_concurrent_queries": 64,
+        "cluster": {
+            "aws_region": "us-west-2",
+            "availability_zone": "us-west-2a",
+            "head_node": {
+                "instance_type": "t3.2xlarge",
+                "num_nodes": 1
+            },
+            "worker_nodes": [
+                {
+                    "name": "gpu_workers",
+                    "instance_type": "g5.2xlarge",
+                    "num_nodes": 2,
+                    "use_gpu": true
+                },
+                {
+                    "name": "cpu_workers",
+                    "instance_type": "c5.2xlarge",
+                    "num_nodes": 2,
+                    "use_gpu": false
+                }
+            ]
+        },
+        "storage": {
+            "type": "efs",
+            "fs_id": "fs-08e6f8d79aaa5fd6e",
+            "mount_point": "/shared",
+            "region": "us-west-2"
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": "/shared/logs/whisper_service.log"
+    }
+}

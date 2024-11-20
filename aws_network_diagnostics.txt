@@ -1,5 +1,5 @@
 AWS Network Diagnostics Script
-Generated on: Tue Nov 19 04:16:40 PM PST 2024
+Generated on: Wed Nov 20 06:35:08 AM PST 2024
 ===================================
 1. Instance Details
 
@@ -10,6 +10,19 @@ Generated on: Tue Nov 19 04:16:40 PM PST 2024
             "Description": "Ray security group",
             "GroupName": "ray-sg",
             "IpPermissions": [
+                {
+                    "FromPort": 8000,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 8000,
+                    "UserIdGroupPairs": []
+                },
                 {
                     "FromPort": 8265,
                     "IpProtocol": "tcp",

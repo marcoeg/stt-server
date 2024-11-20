@@ -453,12 +453,14 @@ Is the latest version (as of Nov 15, 2024)
 Supports both GPU and CPU instances
 Has Ubuntu 20.04 as base OS
 
+---------------------------------------------------------------
 
 ---- Create resources and start cluster
 
 2. Start the cluster:
 ```bash
 ray up cluster.yaml
+ray up cluster.yaml --no-config-cache
 ```
 
 3. Once the cluster is up, get the head node IP:
@@ -471,6 +473,10 @@ ray get-head-ip cluster.yaml
 export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml):10001
 ```
 
+5. Run the server
+```bash
+python main.py
+```
 
 
 When you run `ray up cluster.yaml`, you'll see real-time logs in your terminal showing:
@@ -671,5 +677,24 @@ ray get-head-ip cluster.yaml
 2024-11-19 16:02:52,208	VINFO utils.py:149 -- Creating AWS resource `ec2` in `us-west-2`
 2024-11-19 16:02:52,282	VINFO utils.py:149 -- Creating AWS resource `ec2` in `us-west-2`
 54.201.215.153
-(venv) marco@genai:~/Development/mglabs/stt-server$ export RAY_HEAD_ADDRESS=54.201.215.153:10001
+(venv) marco@genai:~/Development/mglabs/stt-server$ export RAY_HEAD_ADDRESS=54.201.215.153
 (venv) marco@genai:~/Development/mglabs/stt-server$ python main.py
+
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml
+python main.py
+
+
+---
+
+
+ 2677  ray get-head-ip cluster.yaml 
+ 2678  export RAY_HEAD_ADDRESS=54.218.235.116 
+ 2679  python main.py
+
+  2639  ray up cluster.yaml --no-config-cache 
+ 2640  ray down cluster.yaml 
+ 2641  ray attach cluster.yaml
+
+
+ray status --address=54.218.235.116:6379
+ray exec cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'

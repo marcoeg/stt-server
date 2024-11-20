@@ -686,15 +686,94 @@ python main.py
 
 ---
 
-
- 2677  ray get-head-ip cluster.yaml 
- 2678  export RAY_HEAD_ADDRESS=54.218.235.116 
- 2679  python main.py
-
-  2639  ray up cluster.yaml --no-config-cache 
+ 2639  ray up cluster.yaml --no-config-cache 
  2640  ray down cluster.yaml 
  2641  ray attach cluster.yaml
 
+ 2677  ray get-head-ip cluster.yaml 
+ 2678  export RAY_HEAD_ADDRESS=54.218.235.116 
+ 2679  python main.py 
 
 ray status --address=54.218.235.116:6379
 ray exec cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
+
+Before running main.py, pre-scale the cluster manually:
+
+1. First, start with minimum workers set to 0:
+```bash
+ray up cluster.yaml --min-workers 0
+```
+
+2. After the head node is running properly, start the workers:
+```bash
+# Start GPU workers
+ray up cluster.yaml --min-workers 0
+r
+```
+
+Here's a sequence of checks you can perform after the head node is started:
+
+1. Check Ray Dashboard accessibility:
+```bash
+curl http://<head-node-ip>:8265/api/overview
+```
+
+2. Check Ray Client port:
+```bash
+nc -vz <head-node-ip> 10001
+```
+
+3. Check GCS port:
+```bash
+nc -vz <head-node-ip> 6379
+```
+
+4. Check Node logs:
+```bash
+ray exec cluster.yaml 'tail -n 50 /tmp/ray/session_*/logs/*'
+```
+
+5. Check Ray status:
+```bash
+ray status cluster.yaml
+```
+
+6. Verify environment variables:
+```bash
+ray exec cluster.yaml 'env | grep RAY_'
+```
+
+7. Check resource availability:
+```bash
+ray exec cluster.yaml 'ray status --address=localhost:6379 | grep "resources"'
+```
+
+After all checks pass, you can:
+1. Start the workers
+2. Run the same checks on worker nodes
+3. Then run main.py with the configured RAY_HEAD_ADDRESS
+
+curl http://34.217.102.201:8265/api/overview
+nc -vz 18.237.75.53 10001
+nc -vz 18.237.75.53 6379
+ray exec cluster.yaml 'tail -n 50 /tmp/ray/session_*/logs/*'
+ray exec cluster.yaml 'env | grep RAY_'
+ray exec cluster.yaml 'ray status --address=localhost:6379 | grep "resources"'
+
+marco@genai:~/Development/mglabs/stt-server$ curl http://34.217.102.201:8265
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="shortcut icon" href="./favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ray Dashboard</title><script defer="defer" src="./static/js/main.4cd71417.js"></script><link href="./static/css/main.388a904b.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>(venv-3.9) marco@genai:~/Development/mglabs/stt-server$ nc -vz 34.217.102.201 10001
+Connection to 34.217.102.201 10001 port [tcp/*] succeeded!
+(venv-3.9) marco@genai:~/Development/mglabs/stt-server$ nc -vz 34.217.102.201 6379
+Connection to 34.217.102.201 6379 port [tcp/redis] succeeded!
+(venv-3.9) marco@genai:~/Development/mglabs/stt-server$ ray exec cluster.yaml 'env | grep RAY_'
+Loaded cached provider configuration
+If you experience issues with the cloud provider, try re-running the command with --no-config-cache.
+Fetched IP: 34.217.102.201
+Warning: Permanently added '34.217.102.201' (ED25519) to the list of known hosts.
+Shared connection to 34.217.102.201 closed.
+Error: Command failed:
+
+  ssh -tt -i ~/.ssh/ray-cluster.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ControlMaster=auto -o ControlPath=/tmp/ray_ssh_3829486b93/b3bfddefc6/%C -o ControlPersist=10s -o ConnectTimeout=120s ubuntu@34.217.102.201 bash --login -c -i 'source ~/.bashrc; export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore && (env | grep RAY_)'
+
+

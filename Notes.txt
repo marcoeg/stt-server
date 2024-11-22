@@ -680,11 +680,19 @@ ray get-head-ip cluster.yaml
 (venv) marco@genai:~/Development/mglabs/stt-server$ export RAY_HEAD_ADDRESS=54.201.215.153
 (venv) marco@genai:~/Development/mglabs/stt-server$ python main.py
 
+
+
 export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml
 python main.py
 
+curl -X POST http://localhost:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+
+curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
 
 ---
+
 
  2639  ray up cluster.yaml --no-config-cache 
  2640  ray down cluster.yaml 
@@ -761,19 +769,41 @@ ray exec cluster.yaml 'tail -n 50 /tmp/ray/session_*/logs/*'
 ray exec cluster.yaml 'env | grep RAY_'
 ray exec cluster.yaml 'ray status --address=localhost:6379 | grep "resources"'
 
-marco@genai:~/Development/mglabs/stt-server$ curl http://34.217.102.201:8265
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="shortcut icon" href="./favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ray Dashboard</title><script defer="defer" src="./static/js/main.4cd71417.js"></script><link href="./static/css/main.388a904b.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>(venv-3.9) marco@genai:~/Development/mglabs/stt-server$ nc -vz 34.217.102.201 10001
-Connection to 34.217.102.201 10001 port [tcp/*] succeeded!
-(venv-3.9) marco@genai:~/Development/mglabs/stt-server$ nc -vz 34.217.102.201 6379
-Connection to 34.217.102.201 6379 port [tcp/redis] succeeded!
-(venv-3.9) marco@genai:~/Development/mglabs/stt-server$ ray exec cluster.yaml 'env | grep RAY_'
-Loaded cached provider configuration
-If you experience issues with the cloud provider, try re-running the command with --no-config-cache.
-Fetched IP: 34.217.102.201
-Warning: Permanently added '34.217.102.201' (ED25519) to the list of known hosts.
-Shared connection to 34.217.102.201 closed.
-Error: Command failed:
 
-  ssh -tt -i ~/.ssh/ray-cluster.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ControlMaster=auto -o ControlPath=/tmp/ray_ssh_3829486b93/b3bfddefc6/%C -o ControlPersist=10s -o ConnectTimeout=120s ubuntu@34.217.102.201 bash --login -c -i 'source ~/.bashrc; export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore && (env | grep RAY_)'
+-------------------------------------------------------------
 
+without Autoscaling
+
+# Start head node only
+ray up cluster.yaml --min-workers 0
+
+# Start the cluster
+ray up cluster.yaml 
+ray up cluster.yaml --no-config-cache 
+
+# Monitor setup (after head node started)
+ray exec cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
+# Get head node IP
+ray get-head-ip cluster.yaml
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS
+
+# Check cluster status
+ray status --address=$RAY_HEAD_ADDRESS:6379
+
+# Start the application
+python main.py
+
+# Test service
+curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+
+# Check Ray dashboard
+curl http://$RAY_HEAD_ADDRESS:8265
+
+# Log into the head node (ssh)
+ray attach cluster.yaml
+
+# Find workers IP
+aws ec2 describe-instances --filters "Name=tag:ray-node-type,Values=worker" "Name=tag:ray-cluster-name,Values=whisper-serve-cluster" --query 'Reservations[*].Instances[*].PublicIpAddress' --output text
 

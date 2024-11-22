@@ -1,0 +1,426 @@
+Ray Cluster AWS Configuration Dump - Thu Nov 21 04:34:44 PM PST 2024
+=========================================
+\n=== IAM Configuration ===
+\n--- Instance Profile ---
+{
+    "InstanceProfile": {
+        "Path": "/",
+        "InstanceProfileName": "ray-autoscaler-v1",
+        "InstanceProfileId": "AIPA47Q2YPKVFVDL6PRS7",
+        "Arn": "arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1",
+        "CreateDate": "2024-11-19T16:06:43+00:00",
+        "Roles": [
+            {
+                "Path": "/",
+                "RoleName": "ray-autoscaler-v1",
+                "RoleId": "AROA47Q2YPKVNOGLQJQ66",
+                "Arn": "arn:aws:iam::892335585962:role/ray-autoscaler-v1",
+                "CreateDate": "2024-11-19T16:06:58+00:00",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2008-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                }
+            }
+        ],
+        "Tags": []
+    }
+}
+\n--- Attached Role Policies ---
+{
+    "AttachedPolicies": [
+        {
+            "PolicyName": "ray-autoscaler-policy",
+            "PolicyArn": "arn:aws:iam::892335585962:policy/ray-autoscaler-policy"
+        },
+        {
+            "PolicyName": "AmazonEC2FullAccess",
+            "PolicyArn": "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+        },
+        {
+            "PolicyName": "AmazonS3FullAccess",
+            "PolicyArn": "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        }
+    ]
+}
+\n--- Custom Policy (ray-autoscaler-policy) ---
+{
+    "PolicyVersion": {
+        "Document": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "ec2:RunInstances",
+                        "ec2:TerminateInstances",
+                        "ec2:CreateTags",
+                        "ec2:DescribeInstances",
+                        "iam:PassRole",
+                        "iam:CreateRole",
+                        "iam:PutRolePolicy"
+                    ],
+                    "Resource": "*"
+                }
+            ]
+        },
+        "VersionId": "v1",
+        "IsDefaultVersion": true,
+        "CreateDate": "2024-11-20T00:09:38+00:00"
+    }
+}
+\n--- Inline Role Policy ---
+{
+    "RoleName": "ray-autoscaler-v1",
+    "PolicyName": "permissions-ray-cluster",
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ec2:DescribeKeyPairs",
+                    "ec2:RunInstances",
+                    "ec2:CreateKeyPair",
+                    "ec2:ImportKeyPair",
+                    "ec2:DeleteKeyPair"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
+}
+\n=== VPC Configuration ===
+\n--- Subnet Details ---
+{
+    "Subnets": [
+        {
+            "AvailabilityZone": "us-west-2a",
+            "AvailabilityZoneId": "usw2-az1",
+            "AvailableIpAddressCount": 247,
+            "CidrBlock": "172.30.0.0/24",
+            "DefaultForAz": false,
+            "MapPublicIpOnLaunch": true,
+            "MapCustomerOwnedIpOnLaunch": false,
+            "State": "available",
+            "SubnetId": "subnet-c00ae9a6",
+            "VpcId": "vpc-ace332ca",
+            "OwnerId": "892335585962",
+            "AssignIpv6AddressOnCreation": false,
+            "Ipv6CidrBlockAssociationSet": [],
+            "SubnetArn": "arn:aws:ec2:us-west-2:892335585962:subnet/subnet-c00ae9a6",
+            "EnableDns64": false,
+            "Ipv6Native": false,
+            "PrivateDnsNameOptionsOnLaunch": {
+                "HostnameType": "ip-name",
+                "EnableResourceNameDnsARecord": false,
+                "EnableResourceNameDnsAAAARecord": false
+            }
+        }
+    ]
+}
+\n--- VPC Details ---
+{
+    "Vpcs": [
+        {
+            "CidrBlock": "172.30.0.0/16",
+            "DhcpOptionsId": "dopt-eb8e828c",
+            "State": "available",
+            "VpcId": "vpc-ace332ca",
+            "OwnerId": "892335585962",
+            "InstanceTenancy": "default",
+            "CidrBlockAssociationSet": [
+                {
+                    "AssociationId": "vpc-cidr-assoc-3b66ed53",
+                    "CidrBlock": "172.30.0.0/16",
+                    "CidrBlockState": {
+                        "State": "associated"
+                    }
+                }
+            ],
+            "IsDefault": false,
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "ray-vpc"
+                }
+            ]
+        }
+    ]
+}
+\n=== Internet Gateway ===
+{
+    "InternetGateways": [
+        {
+            "Attachments": [
+                {
+                    "State": "available",
+                    "VpcId": "vpc-ace332ca"
+                }
+            ],
+            "InternetGatewayId": "igw-fc981b9b",
+            "OwnerId": "892335585962",
+            "Tags": []
+        }
+    ]
+}
+\n=== Route Tables ===
+{
+    "RouteTables": [
+        {
+            "Associations": [
+                {
+                    "Main": false,
+                    "RouteTableAssociationId": "rtbassoc-0880e0d3a308ee5d2",
+                    "RouteTableId": "rtb-122a0e74",
+                    "SubnetId": "subnet-c00ae9a6",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                },
+                {
+                    "Main": true,
+                    "RouteTableAssociationId": "rtbassoc-f3a1998a",
+                    "RouteTableId": "rtb-122a0e74",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                }
+            ],
+            "PropagatingVgws": [],
+            "RouteTableId": "rtb-122a0e74",
+            "Routes": [
+                {
+                    "DestinationCidrBlock": "172.30.0.0/16",
+                    "GatewayId": "local",
+                    "Origin": "CreateRouteTable",
+                    "State": "active"
+                },
+                {
+                    "DestinationCidrBlock": "0.0.0.0/0",
+                    "GatewayId": "igw-fc981b9b",
+                    "Origin": "CreateRoute",
+                    "State": "active"
+                }
+            ],
+            "Tags": [],
+            "VpcId": "vpc-ace332ca",
+            "OwnerId": "892335585962"
+        }
+    ]
+}
+\n=== Security Groups ===
+{
+    "SecurityGroups": [
+        {
+            "Description": "Ray security group",
+            "GroupName": "ray-sg",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "-1",
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "UserIdGroupPairs": [
+                        {
+                            "GroupId": "sg-030176ebd4455dcc5",
+                            "UserId": "892335585962"
+                        }
+                    ]
+                },
+                {
+                    "FromPort": 8000,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 8000,
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": 8265,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 8265,
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": 22,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 22,
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": 6379,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 6379,
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": 10000,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 19999,
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": 10001,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": 10001,
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": -1,
+                    "IpProtocol": "icmp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": -1,
+                    "UserIdGroupPairs": []
+                }
+            ],
+            "OwnerId": "892335585962",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "UserIdGroupPairs": []
+                },
+                {
+                    "FromPort": -1,
+                    "IpProtocol": "icmp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": [],
+                    "ToPort": -1,
+                    "UserIdGroupPairs": []
+                }
+            ],
+            "VpcId": "vpc-ace332ca"
+        }
+    ]
+}
+\n=== AMI Details ===
+{
+    "Images": [
+        {
+            "Architecture": "x86_64",
+            "CreationDate": "2024-11-15T17:39:54.000Z",
+            "ImageId": "ami-05c1fa8c9881244b6",
+            "ImageLocation": "amazon/Deep Learning Base Proprietary Nvidia Driver GPU AMI (Ubuntu 20.04) 20241115",
+            "ImageType": "machine",
+            "Public": true,
+            "OwnerId": "898082745236",
+            "PlatformDetails": "Linux/UNIX",
+            "UsageOperation": "RunInstances",
+            "State": "available",
+            "BlockDeviceMappings": [
+                {
+                    "DeviceName": "/dev/sda1",
+                    "Ebs": {
+                        "DeleteOnTermination": true,
+                        "Iops": 3000,
+                        "SnapshotId": "snap-02e99ddb3d41158b5",
+                        "VolumeSize": 75,
+                        "VolumeType": "gp3",
+                        "Throughput": 125,
+                        "Encrypted": false
+                    }
+                },
+                {
+                    "DeviceName": "/dev/sdb",
+                    "VirtualName": "ephemeral0"
+                },
+                {
+                    "DeviceName": "/dev/sdc",
+                    "VirtualName": "ephemeral1"
+                }
+            ],
+            "Description": "Supported EC2 instances: G3 (G3.16x not supported), P3, P3dn. Release notes: https://aws.amazon.com/releasenotes/aws-deep-learning-base-gpu-ami-ubuntu-20-04/",
+            "EnaSupport": true,
+            "Hypervisor": "xen",
+            "ImageOwnerAlias": "amazon",
+            "Name": "Deep Learning Base Proprietary Nvidia Driver GPU AMI (Ubuntu 20.04) 20241115",
+            "RootDeviceName": "/dev/sda1",
+            "RootDeviceType": "ebs",
+            "SriovNetSupport": "simple",
+            "VirtualizationType": "hvm",
+            "DeprecationTime": "2026-11-15T17:39:54.000Z"
+        }
+    ]
+}
+\n=== Quick Reference ===
+VPC ID: vpc-ace332ca
+Subnet ID: subnet-c00ae9a6
+Security Group ID: sg-030176ebd4455dcc5
+AMI ID: ami-05c1fa8c9881244b6
+Instance Profile: ray-autoscaler-v1
+Region: us-west-2
+Availability Zone: us-west-2a
+\n=== Network Configuration Requirements ===
+Required open ports:
+- 22 (SSH)
+- 6379 (Ray GCS)
+- 8265 (Ray Dashboard)
+- 10001 (Ray Client)
+- 10000-19999 (Ray Worker Ports)
+- All internal traffic between cluster nodes

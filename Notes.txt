@@ -807,3 +807,37 @@ ray attach cluster.yaml
 # Find workers IP
 aws ec2 describe-instances --filters "Name=tag:ray-node-type,Values=worker" "Name=tag:ray-cluster-name,Values=whisper-serve-cluster" --query 'Reservations[*].Instances[*].PublicIpAddress' --output text
 
+
+-----
+testing deployment to aws cluster using ray docs example
+https://docs.ray.io/en/latest/serve/production-guide/index.html#serve-in-production-example
+https://docs.ray.io/en/latest/serve/production-guide/config.html
+-----
+
+created: text_ml.py and serve_config.yaml following the docs.
+tested in local ray cluster using the steps in docs.
+
+setting up remote deployment and test:
+
+zipping the files and uploading them to S3:
+zip -r text_ml.zip text_ml.py
+aws s3 cp text_ml.py s3://ntoplabs-0001/
+
+added to serve_config.yaml:
+  runtime_env:
+    working_dir: s3://ntoplabs-0001/text_ml.zip
+
+started the cluster:
+ray up cluster.yaml --no-config-cache 
+
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS 
+export RAY_DASHBOARD_ADDRESS="http://$RAY_HEAD_ADDRESS:8265"; echo $RAY_DASHBOARD_ADDRESS
+
+serve deploy serve_config.yaml -a $RAY_DASHBOARD_ADDRESS
+
+serve status -a $RAY_DASHBOARD_ADDRESS
+
+curl -X POST "http://$RAY_HEAD_ADDRESS:8000/"  \
+  -H "Content-Type: application/json"  \
+  -d '"It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief"'
+c'était le meilleur des temps, c'était le pire des temps 

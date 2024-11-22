@@ -1,0 +1,113 @@
+## Some misconfiguration that was the last step to make the cluster working
+
+Let's check the actual rules in both security groups to see what's allowed:
+
+```bash
+# Check EFS mount target security group rules
+aws ec2 describe-security-groups \
+    --group-ids sg-0f01875297b08e89a \
+    --region us-west-2 \
+    --query 'SecurityGroups[0].{InboundRules:IpPermissions,OutboundRules:IpPermissionsEgress}'
+
+# Check Ray cluster security group rules
+aws ec2 describe-security-groups \
+    --group-ids sg-030176ebd4455dcc5 \
+    --region us-west-2 \
+    --query 'SecurityGroups[0].{InboundRules:IpPermissions,OutboundRules:IpPermissionsEgress}'
+```
+
+This will help us understand if:
+1. The EFS security group allows inbound NFS traffic from your Ray cluster
+2. The Ray cluster security group allows outbound traffic to the EFS mount target
+
+Can you run these commands and share the output? Then we can determine what rules need to be added.
+
+Thanks for the output. I notice:
+
+1. The Ray cluster security group (`sg-030176ebd4455dcc5`) has:
+   - Open outbound rules (`0.0.0.0/0`)
+   - Port 2049 (NFS) is open inbound from `0.0.0.0/0`
+
+2. We should modify the EFS mount target's security group (`sg-0f01875297b08e89a`) to allow NFS traffic specifically from the Ray cluster security group:
+
+```bash
+aws ec2 authorize-security-group-ingress \
+    --group-id sg-0f01875297b08e89a \
+    --protocol tcp \
+    --port 2049 \
+    --source-group sg-030176ebd4455dcc5 \
+    --region us-west-2
+```
+
+Also, since we'll need the IAM permissions we discussed earlier, let's add those too:
+
+```bash
+# Create EFS access policy
+cat > efs-policy.json << EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticfilesystem:ClientMount",
+                "elasticfilesystem:ClientWrite",
+                "elasticfilesystem:ClientRootAccess"
+            ],
+            "Resource": "arn:aws:elasticfilesystem:us-west-2:892335585962:file-system/fs-08e6f8d79aaa5fd6e"
+        }
+    ]
+}
+EOF
+
+# Create and attach the policy
+aws iam create-policy \
+    --policy-name EFSAccessPolicy \
+    --policy-document file://efs-policy.json
+
+aws iam attach-role-policy \
+    --role-name ray-autoscaler-v1 \
+    --policy-arn arn:aws:iam::892335585962:policy/EFSAccessPolicy
+```
+
+Would you like me to help you apply these changes? After applying them, we should:
+1. Verify the security group changes took effect
+2. Test the EFS mount on a worker node again
+
+Great, let's verify and test:
+
+1. Verify security group changes:
+```bash
+aws ec2 describe-security-groups \
+    --group-ids sg-0f01875297b08e89a \
+    --region us-west-2 \
+    --query 'SecurityGroups[0].IpPermissions'
+```
+
+2. On a worker node, let's test the EFS mount:
+```bash
+# First unmount if it's currently mounted
+sudo umount /shared
+
+# Clear the current mount and verify
+mount | grep shared
+sudo rm -rf /shared/*  # Be careful with this command!
+sudo mkdir -p /shared
+
+# Try mounting with debug output
+sudo mount -v -t efs -o tls fs-08e6f8d79aaa5fd6e:/ /shared
+
+# Verify mount and test write permissions
+mount | grep shared
+touch /shared/test.txt
+ls -la /shared
+```
+
+If there are any issues, let's check the logs:
+```bash
+# Check mount helper logs
+sudo systemctl status amazon-efs-mount-watchdog.service
+sudo journalctl -xe | grep -i "efs\|nfs"
+```
+
+Can you run these commands and share the output? Let's start with the security group verification and then proceed with the mount testing.

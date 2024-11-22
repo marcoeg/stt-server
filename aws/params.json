@@ -1,0 +1,12 @@
+{
+    "Parameters": {
+      "Environment": "production",
+      "ProjectName": "ray-cluster",
+      "KeyPairName": "your-key-pair",
+      "AllowedIpRange": "your-ip-range",
+      "VpcCidr": "172.30.0.0/16",
+      "SubnetCidr": "172.30.0.0/24",
+      "AvailabilityZone": "us-west-2a",
+      "RayAmiId": "ami-05c1fa8c9881244b6"
+    }
+  }

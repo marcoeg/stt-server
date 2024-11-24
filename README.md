@@ -5,6 +5,7 @@ A distributed speech-to-text service using OpenAI's Whisper model, built with Ra
 Author: Marco Graziano (marco@graziano.com)  
 Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
 
+TO BE REVISED - WRONG PROJECT STRUCTURE 
 ## Overview
 
 Whisper Serve provides a production-ready REST API for speech-to-text transcription using OpenAI's Whisper model. Built on Ray Serve, it offers:
@@ -15,35 +16,38 @@ Whisper Serve provides a production-ready REST API for speech-to-text transcript
 - RESTful API interface
 - Health monitoring endpoints
 
-OpenAI Whisper:
+For more information about OpenAI Whisper:
 https://github.com/openai/whisper/tree/main
-
 
 ## Project Structure
 
 ```
-whisper_serve/
-├── config.json         # Configuration file
+.
+├── audio/                  # Test audio files
+│   └── test_audio.wav
+├── config/                 # Configuration files
+│   ├── config.json        # Main configuration
+│   ├── serve_config_local.yaml  # Local deployment config
+│   └── serve_config_prod.yaml   # Production deployment config
+├── scripts/               # Utility scripts
+│   ├── deploy.sh         # Deployment scripts
+│   └── test.sh          # Test scripts
+├── whisper_serve/        # Main package
+│   ├── __init__.py
+│   ├── api.py           # FastAPI implementation
+│   ├── config.py        # Configuration management
+│   ├── logger.py        # Logging setup
+│   ├── models.py        # Model and transcription logic
+│   └── utils.py         # Utility functions
+├── tests/               # Test suite
+│   ├── __init__.py
+│   ├── test_api.py
+│   └── test_models.py
+├── README.md            # Project documentation
+├── requirements.txt     # Project dependencies
 ├── setup.py            # Package setup
-├── requirements.txt    # Project dependencies
-├── main.py             # Application entry point
-└── whisper_serve/      # Main package directory
-    ├── __init__.py     # Package initialization
-    ├── api.py          # FastAPI implementation
-    ├── config.py       # Configuration management
-    ├── logger.py       # Logging setup
-    ├── models.py       # Model and transcription logic
-    └── utils.py        # Utility functions
+└── main.py             # Application entry point
 ```
-
-### Module Descriptions
-
-- **main.py**: Application entry point, handles service deployment and lifecycle
-- **api.py**: REST API interface using FastAPI
-- **config.py**: Configuration management and validation
-- **models.py**: Core transcription logic and model management
-- **utils.py**: Audio processing and utility functions
-- **logger.py**: Centralized logging configuration
 
 ## Requirements
 
@@ -91,26 +95,23 @@ pip install -e .
 
 ## Configuration
 
-The service is configured through `config.json`:
-
+### Application Configuration (config/config.json)
 ```json
 {
     "server": {
         "host": "0.0.0.0",
-        "port": 8000,
-        "dedicated_cpu": true,
-        "num_cpus": 4
+        "port": 8000
     },
     "model": {
         "size": "base",
         "device": "auto",
-        "model_dir": "models",
+        "model_dir": "/shared/models",
         "supported_formats": [".wav", ".mp3", ".m4a", ".ogg"]
     },
     "deployment": {
-        "num_replicas": 4,
-        "cpu_per_replica": 0.5,
-        "gpu_per_replica": 0.1
+        "num_replicas": 2,
+        "cpu_per_replica": 2,
+        "gpu_per_replica": 1.0
     },
     "logging": {
         "level": "INFO",
@@ -120,35 +121,109 @@ The service is configured through `config.json`:
 }
 ```
 
-### Configuration Options
+### Ray Serve Deployment
 
-- **Server Configuration**
-  - `host`: Server binding address
-  - `port`: Server port
-  - `dedicated_cpu`: Whether to use dedicated CPU for serving
-  - `num_cpus`: Number of CPUs to use
+#### Local Development Setup
 
-- **Model Configuration**
-  - `size`: Whisper model size (`tiny`, `base`, `small`, `medium`, `large`)
-  - `device`: Computing device (`auto`, `cuda`, `cpu`)
-  - `model_dir`: Directory for model storage
-  - `supported_formats`: List of supported audio formats
-
-- **Deployment Configuration**
-  - `num_replicas`: Number of service replicas
-  - `cpu_per_replica`: CPU allocation per replica
-  - `gpu_per_replica`: GPU allocation per replica (if available)
-
-## Running the Service
-
-1. Start the service:
+1. **Start Ray Cluster**
 ```bash
-python main.py
+# Start the Ray head node
+ray start --head
+
+# Set dashboard address
+export RAY_DASHBOARD_ADDRESS="http://127.0.0.1:8265"
+
+# Optional: Set PYTHONPATH if needed
+export PYTHONPATH="/path/to/whisper-serve"
 ```
 
-2. The service will start and listen on the configured port (default: 8000)
+2. **Deploy Service**
+```bash
+# Deploy using serve configuration
+serve deploy config/serve_config_local.yaml -a $RAY_DASHBOARD_ADDRESS
+```
 
-3. Monitor the service through the Ray dashboard (default: http://localhost:8265)
+3. **Verify Deployment**
+```bash
+# Check service status
+serve status -a $RAY_DASHBOARD_ADDRESS
+
+# Test the service
+curl -X POST http://localhost:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+```
+
+#### Production Cluster Setup
+
+1. **Cluster Prerequisites**
+- Multiple nodes with CUDA-compatible GPUs
+- Network connectivity between nodes
+- Shared filesystem access across nodes (e.g., NFS mount at `/shared/models`)
+- Python environment with Ray installed on all nodes
+
+2. **Environment Setup**
+```bash
+# On head node
+ray start --head
+export RAY_DASHBOARD_ADDRESS="http://<head-node-ip>:8265"
+
+# On worker nodes
+ray start --address='<head-node-ip>:6379'
+```
+
+3. **Shared Storage Setup**
+```bash
+# Ensure model directory exists and is accessible
+mkdir -p /shared/models
+chmod -R 755 /shared/models
+
+# Verify on all nodes
+ls -la /shared/models
+```
+
+4. **Service Deployment**
+```bash
+# Deploy using production configuration
+serve deploy config/serve_config_prod.yaml -a $RAY_DASHBOARD_ADDRESS
+```
+
+### Configuration Files
+
+1. **Local Configuration** (config/serve_config_local.yaml)
+```yaml
+applications:
+  - name: whisper_service
+    route_prefix: /
+    import_path: main:app
+    runtime_env:
+      working_dir: "."
+      py_modules: ["whisper_serve"]
+    deployments:
+      - name: WhisperTranscriber
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 2
+          num_gpus: 1.0
+```
+
+2. **Production Configuration** (config/serve_config_prod.yaml)
+```yaml
+applications:
+  - name: whisper_service
+    route_prefix: /
+    import_path: main:app
+    runtime_env:
+      working_dir: "."
+      py_modules: ["whisper_serve"]
+      env_vars:
+        PYTHONPATH: "/path/to/whisper-serve"
+    deployments:
+      - name: WhisperTranscriber
+        num_replicas: 4
+        ray_actor_options:
+          num_cpus: 2
+          num_gpus: 1.0
+```
 
 ## API Usage
 
@@ -162,7 +237,7 @@ Accepts audio files in supported formats (.wav, .mp3, .m4a, .ogg)
 curl -X POST http://localhost:8000/transcribe \
   -F "audio_file=@/path/to/your/audio.wav"
 
-# With additional curl options for debugging
+# With additional options
 curl -X POST http://localhost:8000/transcribe \
   -F "audio_file=@/path/to/your/audio.wav" \
   -v \
@@ -191,94 +266,81 @@ curl http://localhost:8000/health
 Response:
 ```json
 {
-    "status": "healthy"
+    "status": "healthy",
+    "deployments": {
+        "WhisperTranscriber": "HEALTHY"
+    }
 }
 ```
 
-## Error Handling
+## Monitoring and Management
 
-The API returns appropriate HTTP status codes:
-- 400: Invalid request (unsupported file format, empty file)
-- 500: Server error (transcription failed, model error)
+1. **Service Status**
+```bash
+# Check deployment status
+serve status -a $RAY_DASHBOARD_ADDRESS
 
-Error response includes detailed error messages:
-```json
-{
-    "success": false,
-    "text": "",
-    "latency": 0.001,
-    "word_count": 0,
-    "gpu_memory": 0,
-    "error": "Error message details"
-}
+# List deployments
+serve list -a $RAY_DASHBOARD_ADDRESS
 ```
 
-## Monitoring and Logging
+2. **Ray Dashboard**
+Access the dashboard at `http://<head-node-ip>:8265` to monitor:
+- Node status and resources
+- GPU utilization
+- Running actors and tasks
+- Memory usage
 
-- Logs are written to the configured log file (default: whisper_service.log)
-- Ray dashboard provides service metrics and monitoring
-- Health check endpoint for service status monitoring
-- Console output for immediate feedback
+3. **Logs**
+```bash
+# Check Ray logs
+tail -f /tmp/ray/session_*/logs/serve/*.log
 
-## Production Deployment Considerations
-
-1. **Resource Allocation**
-   - Adjust `num_replicas` based on expected load
-   - Configure `cpu_per_replica` and `gpu_per_replica` based on available resources
-   - Monitor memory usage and adjust accordingly
-
-2. **Security**
-   - Deploy behind a reverse proxy
-   - Implement authentication if needed
-   - Configure CORS appropriately
-
-3. **Monitoring**
-   - Set up log aggregation
-   - Monitor Ray dashboard metrics
-   - Implement alerting based on health checks
-
-4. **Performance**
-   - Use appropriate model size for your needs
-   - Configure batch processing if needed
-   - Monitor and adjust resource allocation
-
-### Load Test Results
-| Concurrency | Avg Latency | P95 Latency | Error Rate | % Change |
-|-------------|-------------|-------------|------------|----------|
-| 4           | 0.90       | 0.00       | 0.0%      | +5.9%    |
-| 8           | 0.99       | 0.00       | 0.0%      | -12.4%   |
-| 16          | 0.75       | 0.00       | 0.0%      | +1.4%    |
-| 32          | 1.31       | 2.33       | 0.0%      | -9.7%    |
-| 64          | 2.52       | 4.57       | 0.0%      | -5.6%    |
-| 128         | 4.99       | 9.19       | 0.0%      | -2.9%    |
-| 192         | 7.55       | 14.27      | 0.0%      | +0.1%    |
-| 256         | 10.10      | 19.00      | 0.0%      | 0%       |
-| 512         | 20.20      | 38.27      | 0.0%      | +0.5%    |
-
+# Check application logs
+tail -f whisper_service.log
 ```
-GPU Information:
-Model: NVIDIA RTX 5000 Ada Generation Laptop GPU
-Total Memory: 16 GB
+
+## Troubleshooting
+
+1. **Service Health**
+```bash
+# Check service health
+curl http://localhost:8000/health
+
+# Check deployment status
+serve status -a $RAY_DASHBOARD_ADDRESS
 ```
----
+
+2. **Resource Verification**
+```bash
+# Check GPU status
+nvidia-smi
+
+# Verify Ray cluster status
+ray status
+```
+
+3. **Common Issues**
+- Service unhealthy: Check logs for initialization errors
+- GPU not available: Verify CUDA setup and GPU allocation
+- Model loading fails: Check shared storage access
+- High latency: Monitor resource utilization in dashboard
+
+## Performance Benchmarks
+
+### Load Test Results (NVIDIA A10G GPU)
 | Concurrency | Avg Latency (s) | P95 Latency (s) | Error Rate (%) |
-|-------------|-----------------|-----------------|----------------|
-| 4           | 0.61            | 0.00            | 0.0%           |
-| 8           | 0.93            | 0.00            | 0.0%           |
-| 16          | 0.85            | 0.00            | 0.0%           |
-| 32          | 1.11            | 1.99            | 0.0%           |
-| 64          | 2.38            | 4.20            | 0.0%           |
-| 128         | 4.31            | 8.03            | 0.0%           |
-| 192         | 6.87            | 12.88           | 0.0%           |
-| 256         | 9.04            | 16.88           | 0.0%           |
-| 512         | 17.63           | 33.19           | 0.0%           |
+|-------------|----------------|----------------|----------------|
+| 4           | 0.61          | 0.00          | 0.0           |
+| 8           | 0.93          | 0.00          | 0.0           |
+| 16          | 0.85          | 0.00          | 0.0           |
+| 32          | 1.11          | 1.99          | 0.0           |
+| 64          | 2.38          | 4.20          | 0.0           |
+| 128         | 4.31          | 8.03          | 0.0           |
+| 192         | 6.87          | 12.88         | 0.0           |
+| 256         | 9.04          | 16.88         | 0.0           |
+| 512         | 17.63         | 33.19         | 0.0           |
 
-
-```
-GPU Information:
-Model: NVIDIA GeForce RTX 4090
-Total Memory: 24 GB
-```
 ## License
 
 Proprietary software. Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
@@ -287,111 +349,4 @@ Proprietary software. Copyright (c) 2024 Graziano Labs Corp. All rights reserved
 
 Marco Graziano - marco@graziano.com
 
-Project Link: [https://github.com/yourusername/whisper-serve](https://github.com/yourusername/whisper-serve)
-
----
----
-
-
-## Improvements
-
-
-1. **Robustness Improvements**:
-   - Health check endpoints to monitor service status
-   - Circuit breakers for external dependencies
-   - Rate limiting to prevent abuse
-   - Request ID tracking for better debugging
-   - Metrics collection (latency, success rate, GPU usage, etc.)
-   - Memory monitoring and cleanup
-   - Proper exception handling and custom error classes
-   - Input validation and sanitization
-   - Maximum file size limits
-   - Timeout handling
-   - Dead letter queue for failed transcriptions
-   - Resource quotas and limits
-   - Auto-scaling based on queue size and load
-   - Graceful degradation under heavy load
-
-2. **Logging Improvements**:
-   - Structured logging with JSON format
-   - Different log levels (DEBUG, INFO, WARNING, ERROR)
-   - Rotating log files with size/time-based rotation
-   - Separate logs for:
-     - Application logs
-     - Access logs
-     - Error logs
-     - Performance metrics
-   - Request/Response logging with sanitization
-   - Correlation IDs for request tracking
-   - Log aggregation support (ELK, CloudWatch, etc.)
-   - Performance logging (GPU utilization, memory usage)
-   - Audit logging for security events
-
-3. **Additional Production Features**:
-   - Authentication and authorization
-   - API versioning
-   - CORS configuration
-   - SSL/TLS support
-   - Docker containerization
-   - Kubernetes deployment manifests
-   - CI/CD pipeline configuration
-   - Monitoring and alerting setup
-   - Backup and recovery procedures
-   - Documentation (API, deployment, monitoring)
-   - Load balancing configuration
-   - Cache management
-   - Support for distributed tracing
-
------
-
-For deploying to a cluster, the main differences would be:
-
-1. **Ray Cluster Setup**:
-   - Replace local `ray.init()` with cluster connection
-   - Use Ray's cluster configuration YAML
-   - Define node resources and roles (head/worker nodes)
-   - Configure cross-node networking
-
-2. **Resource Management**:
-   - Add node affinity for GPU workloads
-   - Configure per-node replica placement
-   - Adjust memory settings for distributed setup
-   - Handle cross-node resource allocation
-
-3. **Model Management**:
-   - Implement model sharding across nodes
-   - Add model synchronization mechanisms
-   - Configure model caching per node
-   - Handle model replication strategy
-
-4. **Networking**:
-   - Add load balancer configuration
-   - Configure inter-node communication
-   - Handle cross-node request routing
-   - Implement service discovery
-
-5. **Monitoring & Logging**:
-   - Add distributed tracing
-   - Implement cluster-wide logging
-   - Add node health monitoring
-   - Configure metrics aggregation
-
-6. **Fault Tolerance**:
-   - Add node failure handling
-   - Implement request retry logic
-   - Configure fallback strategies
-   - Handle partial cluster failures
-
-7. **Configuration**:
-   - Add cluster-specific configurations
-   - Handle per-node settings
-   - Configure resource distribution
-   - Add deployment strategies
-
-Most of the application code would remain the same, with changes primarily in:
-- Initialization and setup code
-- Resource configuration
-- Deployment scripts
-- Monitoring setup
-
-The core transcription logic would be unchanged.
+Project Link: [https://github.com/marcoeg/whisper-serve](https://github.com/marcoeg/whisper-serve)

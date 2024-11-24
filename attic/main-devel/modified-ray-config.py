@@ -1,8 +1,13 @@
 """
+it is not propagated to venv-3.9 - ultimately it may not be needed
+
 this is a modified version of
 ./venv/lib/python3.10/site-packages/ray/autoscaler/_private/aws/config.py
 
-fixes a bug with using the key indicated in cluster.yaml when starting ray
+fixes a bug with using the key indicated in cluster.yaml when starting ray:
+possible error:
+AttributeError: 'NoneType' object has no attribute 'call_retain' suggests a 
+Ray client connection issue where the worker is not properly initialized. 
 """
 
 import copy

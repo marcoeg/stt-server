@@ -1,0 +1,122 @@
+cluster_name: whisper-test-cluster
+
+provider:
+    type: aws
+    region: us-west-2
+    availability_zone: us-west-2a
+    cache_stopped_nodes: False
+    key_pair:
+        key_name: ray-cluster
+
+auth:
+    ssh_user: ubuntu
+    ssh_private_key: ~/.ssh/ray-cluster.pem
+
+max_workers: 4
+
+available_node_types:
+    head_node:
+        resources:
+            CPU: 8
+        node_config:
+            InstanceType: c5.2xlarge
+            ImageId: ami-05c1fa8c9881244b6
+            SubnetId: subnet-c00ae9a6
+            SecurityGroupIds: ["sg-030176ebd4455dcc5"]
+            KeyName: ray-cluster
+            IamInstanceProfile:
+                Arn: arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                      VolumeSize: 75
+
+    gpu_worker:
+        resources:
+            CPU: 8
+            GPU: 1
+        node_config:
+            InstanceType: g5.4xlarge
+            ImageId: ami-05c1fa8c9881244b6
+            SubnetId: subnet-c00ae9a6
+            SecurityGroupIds: ["sg-030176ebd4455dcc5"]
+            KeyName: ray-cluster
+            IamInstanceProfile:
+                Arn: arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                      VolumeSize: 75
+        min_workers: 2
+        max_workers: 2
+
+    cpu_worker:
+        resources:
+            CPU: 8
+        node_config:
+            InstanceType: c5.4xlarge
+            ImageId: ami-05c1fa8c9881244b6
+            SubnetId: subnet-c00ae9a6
+            SecurityGroupIds: ["sg-030176ebd4455dcc5"]
+            KeyName: ray-cluster
+            IamInstanceProfile:
+                Arn: arn:aws:iam::892335585962:instance-profile/ray-autoscaler-v1
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                      VolumeSize: 75
+        min_workers: 2
+        max_workers: 2
+
+head_node_type: head_node
+
+setup_commands:
+    - >
+      while sudo lsof /var/lib/dpkg/lock >/dev/null 2>&1 || 
+            sudo lsof /var/lib/apt/lists/lock >/dev/null 2>&1 || 
+            sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || 
+            sudo lsof /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        sleep 5;
+      done
+    - sudo systemctl stop unattended-upgrades
+    - sudo killall apt-get >/dev/null 2>&1 || true
+    - pip install -U "ray[default]"
+
+head_start_ray_commands:
+    - ray stop
+    - >
+      export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=600000 &&
+      export RAY_HEALTH_CHECK_TIMEOUT_MS=300000 &&
+      export RAY_HEARTBEAT_TIMEOUT_MILLISECONDS=300000 &&
+      export RAY_MAX_MISSED_HEARTBEATS_BEFORE_FAILURE=20 &&
+      export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=60000 &&
+      export RAY_GCS_SERVER_REQUEST_TIMEOUT_SECONDS=120 &&    
+      export RAY_GCS_RECONNECT_GRACE_PERIOD_S=60 &&     
+      export RAY_GCS_CHECK_FAILURE_LIMIT=10 && 
+      export RAY_RAYLET_HEALTH_CHECK_TIMEOUT_SECONDS=120 &&
+      export RAY_RAYLET_HEALTH_CHECK_PERIOD_SECONDS=300 &&    
+      export RAY_OBJECT_MANAGER_PULL_TIMEOUT_MS=60000 &&
+      export RAY_DEBUG_AUTOSCALER=1 &&
+      export RAY_CLIENT_MODE=0 &&
+      export RAY_DASHBOARD_PORT=8265 &&
+      export RAY_DASHBOARD_HOST=0.0.0.0 &&
+      ulimit -n 65536 && ray start --head --port=6379 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0 --include-dashboard=true --ray-client-server-port=10001 --disable-usage-stats
+
+worker_start_ray_commands:
+    - ray stop
+    - >
+      export RAY_NODE_MANAGER_HEARTBEAT_TIMEOUT_MILLISECONDS=600000 &&
+      export RAY_HEALTH_CHECK_TIMEOUT_MS=300000 &&
+      export RAY_HEARTBEAT_TIMEOUT_MILLISECONDS=300000 &&
+      export RAY_MAX_MISSED_HEARTBEATS_BEFORE_FAILURE=20 &&
+      export RAY_GCS_RPC_SERVER_REQUEST_TIMEOUT_MS=60000 &&
+      export RAY_GCS_SERVER_REQUEST_TIMEOUT_SECONDS=120 && 
+      export RAY_GCS_RECONNECT_GRACE_PERIOD_S=60 &&
+      export RAY_GCS_CHECK_FAILURE_LIMIT=10 && 
+      export RAY_RAYLET_HEALTH_CHECK_TIMEOUT_SECONDS=120 && 
+      export RAY_RAYLET_HEALTH_CHECK_PERIOD_SECONDS=300 && 
+      export RAY_OBJECT_MANAGER_PULL_TIMEOUT_MS=60000 &&
+      export RAY_DEBUG_AUTOSCALER=1 &&
+      export RAY_CLIENT_MODE=0 &&
+      env | grep RAY_ > /tmp/ray_env.log &&
+      ulimit -n 65536 && ray start --address=$RAY_HEAD_IP:6379 --disable-usage-stats

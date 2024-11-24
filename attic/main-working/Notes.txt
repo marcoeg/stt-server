@@ -1,0 +1,591 @@
+Here's a high-level design for adding LLaMA 3.2 inference alongside Whisper:
+
+
+zone: us-west-2
+
+key-name: ray-cluster
+vpc-id: vpc-ace332ca
+subnet-id: subnet-c00ae9a6
+
+-- Ray cluster setup (partial)
+python scripts/setup_cluster.py --key-name ray-cluster \
+                              --vpc-id vpc-ace332ca \
+                              --subnet-id subnet-c00ae9a6
+
+-- EFS setup (if needed)
+python scripts/setup_efs.py --vpc-id vpc-ace332ca  --subnet-id subnet-c00ae9a6
+---
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ python scripts/setup_cluster.py --key-name ray-cluster                               --vpc-id vpc-ace332ca                               --subnet-id subnet-c00ae9a6
+Generated cluster configuration. To deploy:
+
+1. Create security group:
+aws ec2 create-security-group --group-name ray-sg --description 'Ray security group' --vpc-id vpc-ace332ca
+
+2. Add inbound rules:
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 6379 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 8265 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port 10001 --cidr 0.0.0.0/0
+
+--
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 create-security-group --group-name ray-sg --description 'Ray security group' --vpc-id vpc-ace332ca
+{
+    "GroupId": "sg-030176ebd4455dcc5"
+}
+
+# Run these commands one by one, replacing <sg-id>
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 6379 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 8265 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 10001 --cidr 0.0.0.0/0
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 22 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-009b21d26699721a4",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 6379 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-002d6f392a0ffa3ec",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 6379,
+            "ToPort": 6379,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 8265 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-06af911813f94aab4",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 8265,
+            "ToPort": 8265,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 authorize-security-group-ingress --group-id sg-030176ebd4455dcc5 --protocol tcp --port 10001 --cidr 0.0.0.0/0
+{
+    "Return": true,
+    "SecurityGroupRules": [
+        {
+            "SecurityGroupRuleId": "sgr-01fe6396623f55c7e",
+            "GroupId": "sg-030176ebd4455dcc5",
+            "GroupOwnerId": "892335585962",
+            "IsEgress": false,
+            "IpProtocol": "tcp",
+            "FromPort": 10001,
+            "ToPort": 10001,
+            "CidrIpv4": "0.0.0.0/0"
+        }
+    ]
+}
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ python scripts/setup_efs.py --vpc-id vpc-ace332ca --subnet-id subnet-c00ae9a6
+Creating EFS filesystem...
+
+EFS setup complete!
+Filesystem ID: fs-08e6f8d79aaa5fd6e
+
+Mount Instructions:
+
+    # Run these commands on each cluster node:
+    
+    # 1. Install EFS utilities
+    sudo apt-get update
+    sudo apt-get -y install amazon-efs-utils
+    
+    # 2. Create mount point
+    sudo mkdir -p /shared/models
+    sudo mkdir -p /shared/logs
+    
+    # 3. Add to /etc/fstab
+    echo "fs-08e6f8d79aaa5fd6e.efs.us-west-2.amazonaws.com:/ /shared efs _netdev,tls,iam 0 0" | sudo tee -a /etc/fstab
+    
+    # 4. Mount EFS
+    sudo mount -a
+    
+    # 5. Set permissions
+    sudo chown -R ubuntu:ubuntu /shared
+    
+
+Configuration updated with EFS details.
+
+Note: Add these Ray cluster initialization commands to cluster.yaml:
+
+    setup_commands:
+        - sudo apt-get update
+        - sudo apt-get -y install amazon-efs-utils
+        - sudo mkdir -p /shared/models
+        - sudo mkdir -p /shared/logs
+        - echo "$fs-08e6f8d79aaa5fd6e.efs.us-west-2.amazonaws.com:/ /shared efs _netdev,tls,iam 0 0" | sudo tee -a /etc/fstab
+        - sudo mount -a
+        - sudo chown -R ubuntu:ubuntu /shared
+
+
+Added setup_commands to cluster.yaml.
+
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ aws ec2 describe-security-groups \
+    --filters "Name=vpc-id,Values=vpc-ace332ca" \
+    --query 'SecurityGroups[*].[GroupId,GroupName]' \
+    --output table
+------------------------------------------------------------
+|                  DescribeSecurityGroups                  |
++-----------------------+----------------------------------+
+|  sg-0f01875297b08e89a |  whisper-efs-sg                  |
+|  sg-0c4532a24d118de04 |  ElasticMapReduceEditors-Livy    |
+|  sg-e4fe419e          |  launch-wizard-1                 |
+|  sg-0e47380bd61d5fe96 |  ElasticMapReduce-master         |
+|  sg-d1fb44ab          |  default                         |
+|  sg-0ed4ce21de5e8ac2a |  ElasticMapReduceEditors-Editor  |
+|  sg-0de6ee4bee9b585d4 |  ElasticMapReduce-slave          |
+|  sg-062208f614031f69f |  redshift_security_group         |
+|  sg-030176ebd4455dcc5 |  ray-sg                          |
++-----------------------+----------------------------------+
+
+Let's use the latest Deep Learning Base Proprietary Nvidia Driver GPU AMI 
+since it's the most recent and doesn't include unnecessary frameworks (we'll install what we need).
+
+ImageId: ami-05c1fa8c9881244b6
+
+This AMI:
+
+Has NVIDIA drivers pre-installed
+Is optimized for GPU workloads
+Is the latest version (as of Nov 15, 2024)
+Supports both GPU and CPU instances
+Has Ubuntu 20.04 as base OS
+
+---------------------------------------------------------------
+
+---- Create resources and start cluster
+
+2. Start the cluster:
+```bash
+ray up cluster.yaml
+ray up cluster.yaml --no-config-cache
+```
+
+3. Once the cluster is up, get the head node IP:
+```bash
+ray get-head-ip cluster.yaml
+```
+
+4. Set the environment variable:
+```bash
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml):10001
+```
+
+5. Run the server
+```bash
+python main.py
+```
+
+
+When you run `ray up cluster.yaml`, you'll see real-time logs in your terminal showing:
+
+1. Instance Creation:
+```
+Launched a new head node
+<instance-id>
+Fetching head node public IP...
+```
+
+2. Setup Progress:
+```
+Setting up head node...
+Running setup commands...
+> sudo apt-get update
+> sudo apt-get install -y amazon-efs-utils
+...
+```
+
+3. Ray Installation:
+```
+Installing Ray...
+Running Ray setup commands...
+Starting Ray runtime...
+```
+
+
+1. Check Ray Dashboard:
+```bash
+# After cluster is up, get head node IP
+ray get-head-ip cluster.yaml
+
+# Access dashboard at:
+http://<head-node-ip>:8265
+```
+
+2. SSH into nodes:
+```bash
+# SSH to head node
+ray attach cluster.yaml
+
+ssh -i ray-cluster.pem ubuntu@54.191.127.19
+
+# View logs on head node
+tail -f /tmp/ray/session_*/logs/*
+```
+
+3. Monitor AWS:
+- EC2 Console for instance status
+- CloudWatch for metrics
+- EFS Console for mount status
+
+
+
+
+---- Resources shoutdown
+To shut down and clean up AWS resources:
+
+1. Stop the Ray cluster (this terminates EC2 instances):
+```bash
+ray down cluster.yaml
+```
+
+2. Delete the EFS filesystem:
+```bash
+# Get the mount target ID first
+aws efs describe-mount-targets --file-system-id fs-08e6f8d79aaa5fd6e
+
+# Delete mount target (repeat for each mount target)
+aws efs delete-mount-target --mount-target-id <mount-target-id>
+
+# Wait a few minutes for mount target deletion, then delete filesystem
+aws efs delete-file-system --file-system-id fs-08e6f8d79aaa5fd6e
+```
+
+3. Delete security groups:
+```bash
+# Delete Ray security group
+aws ec2 delete-security-group --group-name ray-sg
+
+# Delete EFS security group
+aws ec2 delete-security-group --group-name whisper-efs-sg
+```
+
+Would you like me to write a cleanup script that automates this process?
+
+Or should we proceed with testing the cluster first?
+
+
+---
+
+
+The updated **Network ACL (NACL)** configuration looks mostly correct, but there is one issue:
+
+---
+
+### **Current Issues**
+
+1. **Rule Number Conflict for 6379 (Redis)**:
+   - The **inbound rule for Redis (port 6379)** has the same rule number (`100`) as the **allow all outbound traffic** rule.
+   - Rule numbers in a NACL must be **unique** for both inbound and outbound rules.
+
+---
+
+
+
+
+### **Expected ACL  Configuration**
+
+After the fix, the NACL should include:
+
+#### **Inbound Rules**
+| Rule Number | Protocol | Port Range    | Action | Notes                  |
+|-------------|----------|---------------|--------|------------------------|
+| 150         | TCP      | 6379          | Allow  | Redis traffic          |
+| 110         | TCP      | 8265          | Allow  | Ray dashboard          |
+| 120         | TCP      | 10001-19999   | Allow  | Worker communication   |
+| 130         | TCP      | 2049          | Allow  | EFS (NFS) traffic      |
+| 140         | TCP      | 22            | Allow  | SSH access             |
+| 32767       | All      | All           | Deny   | Default deny all       |
+
+#### **Outbound Rules**
+| Rule Number | Protocol | Port Range    | Action | Notes                  |
+|-------------|----------|---------------|--------|------------------------|
+| 100         | All      | All           | Allow  | Internet access        |
+| 32767       | All      | All           | Deny   | Default deny all       |
+
+---
+
+### **Validation**
+1. Check the updated rules:
+   ```bash
+   aws ec2 describe-network-acls --filters "Name=association.subnet-id,Values=subnet-c00ae9a6"
+   ```
+
+
+----------------
+
+Local node IP: 172.30.0.20
+
+--------------------
+Ray runtime started.
+--------------------
+
+Next steps
+  To add another node to this Ray cluster, run
+    ray start --address='172.30.0.20:6379'
+  
+  To connect to this Ray cluster:
+    import ray
+    ray.init()
+  
+  To submit a Ray job using the Ray Jobs CLI:
+    RAY_ADDRESS='http://172.30.0.20:8265' ray job submit --working-dir . -- python my_script.py
+  
+  See https://docs.ray.io/en/latest/cluster/running-applications/job-submission/index.html 
+  for more information on submitting Ray jobs to the Ray cluster.
+  
+  To terminate the Ray runtime, run
+    ray stop
+  
+  To view the status of the cluster, use
+    ray status
+  
+  To monitor and debug Ray, view the dashboard at 
+    172.30.0.20:8265
+  
+  If connection to the dashboard fails, check your firewall settings and network configuration.
+Shared connection to 54.201.215.153 closed.
+  New status: up-to-date
+
+Useful commands:
+  To terminate the cluster:
+    ray down /home/marco/Development/mglabs/stt-server/cluster.yaml
+  
+  To retrieve the IP address of the cluster head:
+    ray get-head-ip /home/marco/Development/mglabs/stt-server/cluster.yaml
+  
+  To port-forward the cluster's Ray Dashboard to the local machine:
+    ray dashboard /home/marco/Development/mglabs/stt-server/cluster.yaml
+  
+  To submit a job to the cluster, port-forward the Ray Dashboard in another terminal and run:
+    ray job submit --address http://localhost:<dashboard-port> --working-dir . -- python my_script.py
+  
+  To connect to a terminal on the cluster head for debugging:
+    ray attach /home/marco/Development/mglabs/stt-server/cluster.yaml
+  
+  To monitor autoscaling:
+    ray exec /home/marco/Development/mglabs/stt-server/cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
+    ---
+
+ray get-head-ip cluster.yaml
+
+
+(venv) marco@genai:~/Development/mglabs/stt-server$ ray get-head-ip cluster.yaml
+2024-11-19 16:02:52,208	VINFO utils.py:149 -- Creating AWS resource `ec2` in `us-west-2`
+2024-11-19 16:02:52,282	VINFO utils.py:149 -- Creating AWS resource `ec2` in `us-west-2`
+54.201.215.153
+(venv) marco@genai:~/Development/mglabs/stt-server$ export RAY_HEAD_ADDRESS=54.201.215.153
+(venv) marco@genai:~/Development/mglabs/stt-server$ python main.py
+
+
+
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml
+python main.py
+
+curl -X POST http://localhost:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+
+curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+
+---
+
+
+ 2639  ray up cluster.yaml --no-config-cache 
+ 2640  ray down cluster.yaml 
+ 2641  ray attach cluster.yaml
+
+ 2677  ray get-head-ip cluster.yaml 
+ 2678  export RAY_HEAD_ADDRESS=54.218.235.116 
+ 2679  python main.py 
+
+ray status --address=54.218.235.116:6379
+ray exec cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
+
+Before running main.py, pre-scale the cluster manually:
+
+1. First, start with minimum workers set to 0:
+```bash
+ray up cluster.yaml --min-workers 0
+```
+
+2. After the head node is running properly, start the workers:
+```bash
+# Start GPU workers
+ray up cluster.yaml --min-workers 0
+r
+```
+
+Here's a sequence of checks you can perform after the head node is started:
+
+1. Check Ray Dashboard accessibility:
+```bash
+curl http://<head-node-ip>:8265/api/overview
+```
+
+2. Check Ray Client port:
+```bash
+nc -vz <head-node-ip> 10001
+```
+
+3. Check GCS port:
+```bash
+nc -vz <head-node-ip> 6379
+```
+
+4. Check Node logs:
+```bash
+ray exec cluster.yaml 'tail -n 50 /tmp/ray/session_*/logs/*'
+```
+
+5. Check Ray status:
+```bash
+ray status cluster.yaml
+```
+
+6. Verify environment variables:
+```bash
+ray exec cluster.yaml 'env | grep RAY_'
+```
+
+7. Check resource availability:
+```bash
+ray exec cluster.yaml 'ray status --address=localhost:6379 | grep "resources"'
+```
+
+After all checks pass, you can:
+1. Start the workers
+2. Run the same checks on worker nodes
+3. Then run main.py with the configured RAY_HEAD_ADDRESS
+
+curl http://34.217.102.201:8265/api/overview
+nc -vz 18.237.75.53 10001
+nc -vz 18.237.75.53 6379
+ray exec cluster.yaml 'tail -n 50 /tmp/ray/session_*/logs/*'
+ray exec cluster.yaml 'env | grep RAY_'
+ray exec cluster.yaml 'ray status --address=localhost:6379 | grep "resources"'
+
+
+-------------------------------------------------------------
+
+without Autoscaling
+
+# Start head node only
+ray up cluster.yaml --min-workers 0
+
+# Start the cluster
+ray up cluster.yaml 
+ray up cluster.yaml --no-config-cache 
+
+# Monitor setup (after head node started)
+ray exec cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
+# Get head node IP
+ray get-head-ip cluster.yaml
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS
+
+# Check cluster status
+ray status --address=$RAY_HEAD_ADDRESS:6379
+
+# Start the application
+python main.py
+
+# Test service
+curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+
+# Check Ray dashboard
+curl http://$RAY_HEAD_ADDRESS:8265
+
+# Log into the head node (ssh)
+ray attach cluster.yaml
+
+# Find workers IP
+aws ec2 describe-instances --filters "Name=tag:ray-node-type,Values=worker" "Name=tag:ray-cluster-name,Values=whisper-serve-cluster" --query 'Reservations[*].Instances[*].PublicIpAddress' --output text
+
+
+-----
+testing deployment to aws cluster using ray docs example
+https://docs.ray.io/en/latest/serve/production-guide/index.html#serve-in-production-example
+https://docs.ray.io/en/latest/serve/production-guide/config.html
+
+curl -X POST "http://$RAY_HEAD_ADDRESS:8000/"  \
+  -H "Content-Type: application/json"  \
+  -d '"It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief"'
+c'était le meilleur des temps, c'était le pire des temps 
+
+-----
+
+created: text_ml.py and serve_config.yaml following the docs.
+tested in local ray cluster using the steps in docs.
+
+
+added to serve_config.yaml for remote deployment:
+  runtime_env:
+    working_dir: s3://ntoplabs-0001/text_ml.zip
+
+setting up remote deployment and test:
+
+zipping the files and uploading them to S3:
+zip -r text_ml.zip text_ml.py
+aws s3 cp text_ml.py s3://ntoplabs-0001/
+
+
+started the cluster:
+ray up cluster.yaml --no-config-cache 
+
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS 
+export RAY_DASHBOARD_ADDRESS="http://$RAY_HEAD_ADDRESS:8265"; echo $RAY_DASHBOARD_ADDRESS
+
+serve deploy serve_config.yaml -a $RAY_DASHBOARD_ADDRESS
+
+serve status -a $RAY_DASHBOARD_ADDRESS
+
+curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe   -F "audio_file=@./audio/test_audio.wav"
+
+
+--
+
+local too:
+
+ray start --head
+export RAY_DASHBOARD_ADDRESS="http://127.0.0.1:8265"
+serve deploy serve_config.yaml -a $RAY_DASHBOARD_ADDRESS 
+ 
+ serve status -a $RAY_DASHBOARD_ADDRESS

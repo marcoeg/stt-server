@@ -18,9 +18,9 @@
     },
     "deployment": {
         "mode": "cluster",
-        "num_replicas": 8,
-        "cpu_per_replica": 1.0,
-        "gpu_per_replica": 0.083,
+        "num_replicas": 2,
+        "cpu_per_replica": 2,
+        "gpu_per_replica": 1.0,
         "max_concurrent_queries": 64,
         "cluster": {
             "aws_region": "us-west-2",

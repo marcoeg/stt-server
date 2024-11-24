@@ -7,6 +7,9 @@ from typing import List, Dict
 from dataclasses import dataclass
 from pathlib import Path
 
+global ENDPOINT
+ENDPOINT="http://localhost:8000/transcribe"
+
 @dataclass
 class TestResult:
     concurrency: int
@@ -31,7 +34,8 @@ async def send_request(session: aiohttp.ClientSession, audio_path: str) -> float
     try:
         data = aiohttp.FormData()
         data.add_field('audio_file', open(audio_path, 'rb'))
-        async with session.post('http://localhost:8000/transcribe', data=data) as response:
+#        async with session.post('http://localhost:8000/transcribe', data=data) as response:
+        async with session.post(ENDPOINT, data=data) as response:
             await response.text()
             return time.time() - start_time, response.status == 200
     except Exception as e:

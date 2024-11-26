@@ -9,14 +9,12 @@ applications:
   route_prefix: /
   import_path: main:app
   runtime_env:
-    working_dir: s3://ntoplabs-0001/whisper_serve.zip
-    env_vars:
-      PYTHONPATH: "."
+    working_dir: "s3://ntoplabs-0001/whisper_serve.zip"
     pip:
       - torch
       - transformers
   deployments:
-  - name: WhisperTranscriber
+  - name: WhisperAPI
     num_replicas: 2
     ray_actor_options:
       num_cpus: 2

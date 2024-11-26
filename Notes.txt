@@ -6,12 +6,21 @@
 # Start the cluster in AWS:
 ray up cluster.yaml --no-config-cache 
 
+# After the head node is setup -- 
+
+#  To monitor autoscaling:
+ray exec /home/marco/Development/mglabs/stt-server/cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
 export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS 
 export RAY_DASHBOARD_ADDRESS="http://$RAY_HEAD_ADDRESS:8265"; echo $RAY_DASHBOARD_ADDRESS
 
+# Access the dashboard in a browser at http://$RAY_HEAD_ADDRESS:8265
+
+# After the workers are setup --
+
 # Set up the workload for remote deployment:
-zip -r text_ml.zip text_ml.py
-aws s3 cp text_ml.py s3://ntoplabs-0001
+zip -r whisper_serve.zip whisper_serve/
+aws s3 cp whisper_serve.zip s3://ntoplabs-0001
 
 # Start the worload:
 serve deploy serve_config.yaml -a $RAY_DASHBOARD_ADDRESS

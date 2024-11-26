@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 global ENDPOINT
-ENDPOINT="http://localhost:8000/transcribe"
+
+#ENDPOINT="http://localhost:8000/transcribe"
+ENDPOINT="http://35.162.192.100:8000/transcribe"
 
 @dataclass
 class TestResult:

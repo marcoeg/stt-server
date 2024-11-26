@@ -21,7 +21,8 @@ import os
 
 log_level = os.getenv('LOG_LEVEL', 'INFO')
 log_format = os.getenv('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-log_file = "/shared/logs/whisper_service.log"
+log_file = "/home/ubuntu/logs/whisper_service.log" #"/shared/logs/whisper_service.log"
+    
 
 def setup_logger(name: str = "whisper_service") -> logging.Logger:
     """Configure and return a logger instance"""

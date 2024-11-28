@@ -7,10 +7,10 @@ from typing import List, Dict
 from dataclasses import dataclass
 from pathlib import Path
 
+import os
 global ENDPOINT
 
-#ENDPOINT="http://localhost:8000/transcribe"
-ENDPOINT="http://35.162.192.100:8000/transcribe"
+ENDPOINT = "http://" + os.getenv("RAY_HEAD_ADDRESS", "localhost") + ":8000/transcribe"
 
 @dataclass
 class TestResult:
@@ -69,6 +69,7 @@ async def main():
     audio_dir = './audio'
     #audio_files = [str(Path(audio_dir) / f) for f in ['test_audio.wav', 'test_audio10.wav', 'test_audio30.wav']]
     audio_files = [str(Path(audio_dir) / f) for f in ['test_audio.wav', 'test_audio.wav', 'test_audio.wav']]
+    #audio_files = [str(Path(audio_dir) / f) for f in ['test_audio.wav']]
 
     print("\nStarting load test...")
     print(f"{'Concurrency':<10} {'Avg Latency':<12} {'P95 Latency':<12} {'Error Rate':<10}")

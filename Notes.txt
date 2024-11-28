@@ -53,7 +53,7 @@ export RAY_DASHBOARD_ADDRESS="http://127.0.0.1:8265"
 export PYTHONPATH="/home/marco/Development/mglabs/stt-server"
 
 # entry point main.py
-serve deploy serve_config_local.yaml -a $RAY_DASHBOARD_ADDRESS 
+serve deploy serve_config.local.yaml -a $RAY_DASHBOARD_ADDRESS 
  
 serve status -a $RAY_DASHBOARD_ADDRESS
 
@@ -353,3 +353,53 @@ applications:
       memory: 2000_000_000
 
 WARNING 2024-11-24 13:29:46,412 whisper_service_WhisperTranscriber zyx1jvph replica.py:571 - Replica at capacity of max_ongoing_requests=5, rejecting request 22370ef1-eddb-4c93-a788-324012c9f83f.
+
+
+=============
+
+
+  deployments:
+  - name: WhisperTranscriber
+    max_outgoing_requests: 1
+    autoscaling_config:
+      target_outgoing_requests: 25
+      min_replicas: 8
+      max_replicas: 60
+    ray_actor_options:
+      num_cpus: 1
+      num_gpus: 0.25
+  - name: WhisperAPI
+    max_outgoing_requests: 1
+    autoscaling_config:
+      target_outgoing_requests: 25
+      min_replicas: 8
+      max_replicas: 40
+    ray_actor_options:
+      num_cpus: 1
+
+
+Starting load test...
+Concurrency Avg Latency  P95 Latency  Error Rate
+--------------------------------------------
+4          0.55........ 0.00........ 0.0.......%
+8          0.57........ 0.00........ 0.0.......%
+16         0.63........ 0.00........ 0.0.......%
+32         0.73........ 1.29........ 0.0.......%
+64         1.03........ 1.78........ 0.0.......%
+128        1.78........ 2.59........ 0.0.......%
+192        2.49........ 4.02........ 0.0.......%
+256        2.86........ 4.61........ 0.0.......%
+512        4.98........ 8.45........ 0.0.......%
+
+Starting load test...
+Concurrency Avg Latency  P95 Latency  Error Rate
+--------------------------------------------
+4          0.49........ 0.00........ 0.0.......%
+8          0.54........ 0.00........ 0.0.......%
+16         0.59........ 0.00........ 0.0.......%
+32         0.70........ 1.20........ 0.0.......%
+64         1.08........ 1.86........ 0.0.......%
+128        1.76........ 2.78........ 0.0.......%
+192        2.28........ 3.54........ 0.0.......%
+256        2.82........ 4.49........ 0.0.......%
+512        4.86........ 8.60........ 0.0.......%

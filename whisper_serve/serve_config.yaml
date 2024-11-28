@@ -13,9 +13,22 @@ applications:
     pip:
       - torch
       - transformers
+
   deployments:
-  - name: WhisperAPI
-    num_replicas: 2
+  - name: WhisperTranscriber
+    max_outgoing_requests: 1
+    autoscaling_config:
+      target_outgoing_requests: 25
+      min_replicas: 8
+      max_replicas: 60
     ray_actor_options:
-      num_cpus: 2
-      num_gpus: 1
+      num_cpus: 1
+      num_gpus: 0.25
+  - name: WhisperAPI
+    max_outgoing_requests: 1
+    autoscaling_config:
+      target_outgoing_requests: 25
+      min_replicas: 8
+      max_replicas: 40
+    ray_actor_options:
+      num_cpus: 1

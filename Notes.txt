@@ -357,6 +357,7 @@ WARNING 2024-11-24 13:29:46,412 whisper_service_WhisperTranscriber zyx1jvph repl
 
 =============
 
+cluster 8 workers
 
   deployments:
   - name: WhisperTranscriber

@@ -5,7 +5,6 @@ A distributed speech-to-text service using OpenAI's Whisper model, built with Ra
 Author: Marco Graziano (marco@graziano.com)  
 Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
 
-TO BE REVISED - WRONG PROJECT STRUCTURE 
 ## Overview
 
 Whisper Serve provides a production-ready REST API for speech-to-text transcription using OpenAI's Whisper model. Built on Ray Serve, it offers:
@@ -19,40 +18,53 @@ Whisper Serve provides a production-ready REST API for speech-to-text transcript
 For more information about OpenAI Whisper:
 https://github.com/openai/whisper/tree/main
 
+## AWS Infrastructure
+
+This infrastructure is designed for a Ray cluster deployment in AWS, with the following key components:
+
+- VPC with public subnet
+- Security groups for cluster communication
+- IAM roles and policies for Ray autoscaling
+- EFS integration for shared storage
+- Deep Learning AMI base configuration
+
+Details on the AWS setup are in the aws directory [README file.](./aws/README.md)
+
 ## Project Structure
 
 ```
 .
 ├── audio/                  # Test audio files
 │   └── test_audio.wav
-├── config/                 # Configuration files
-│   ├── config.json        # Main configuration
-│   ├── serve_config_local.yaml  # Local deployment config
-│   └── serve_config_prod.yaml   # Production deployment config
-├── scripts/               # Utility scripts
-│   ├── deploy.sh         # Deployment scripts
-│   └── test.sh          # Test scripts
+|   ├── test_audio10.wav
+|   └── test_audio30.wav
+├── aws/                   # AWS Setup and Configuration 
+│   ├── scripts/           # Configuration and audit
+│   ├── setup/             # Cluster deployment scripts
+│   └── README.md   
+├── models/               # Whisper models cache 
+│   ├── base.pt           
+│   └── large.pt         
 ├── whisper_serve/        # Main package
 │   ├── __init__.py
-│   ├── api.py           # FastAPI implementation
-│   ├── config.py        # Configuration management
-│   ├── logger.py        # Logging setup
-│   ├── models.py        # Model and transcription logic
-│   └── utils.py         # Utility functions
-├── tests/               # Test suite
-│   ├── __init__.py
-│   ├── test_api.py
-│   └── test_models.py
-├── README.md            # Project documentation
-├── requirements.txt     # Project dependencies
-├── setup.py            # Package setup
-└── main.py             # Application entry point
+│   ├── api.py            # FastAPI implementation
+│   ├── config.py         # Configuration management
+│   ├── logger.py         # Logging setup
+│   ├── models.py         # Model and transcription logic
+│   └── utils.py          # Utility functions
+├── tests/                # Test suite
+│   ├── load_test.py      # Cluster load test
+│   └── Results.txt       # Results file
+├── README.md             # Project documentation
+├── requirements.txt      # Project dependencies
+├── cluster.yaml          # Cluster launch setup
+└── serve_config.yaml     # Ray whisper_serv configuration
 ```
 
 ## Requirements
 
 ### System Requirements
-- Python 3.10 or higher
+- Python 3.9 (strict)
 - CUDA-compatible GPU (optional, for GPU acceleration)
 - Sufficient disk space for model storage
 - Adequate RAM (minimum 8GB recommended)
@@ -69,12 +81,12 @@ The project requires several key packages:
 1. Clone the repository:
 ```bash
 git clone https://github.com/marcoeg/whisper-serve.git
-cd whisper-serve
+
 ```
 
 2. Create and activate a virtual environment:
 ```bash
-python3 -m venv venv
+python3.9 -m venv venv
 source venv/bin/activate  
 ```
 
@@ -89,39 +101,12 @@ pip install -r requirements.txt
 # Install Ray with Serve components
 pip install -U "ray[default,serve]"
 
-# Install the package in development mode
-pip install -e .
 ```
 
 ## Configuration
 
-### Application Configuration (config/config.json)
-```json
-{
-    "server": {
-        "host": "0.0.0.0",
-        "port": 8000
-    },
-    "model": {
-        "size": "base",
-        "device": "auto",
-        "model_dir": "/shared/models",
-        "supported_formats": [".wav", ".mp3", ".m4a", ".ogg"]
-    },
-    "deployment": {
-        "num_replicas": 2,
-        "cpu_per_replica": 2,
-        "gpu_per_replica": 1.0
-    },
-    "logging": {
-        "level": "INFO",
-        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        "file": "whisper_service.log"
-    }
-}
-```
 
-### Ray Serve Deployment
+## Ray Serve Deployment
 
 #### Local Development Setup
 
@@ -153,77 +138,71 @@ curl -X POST http://localhost:8000/transcribe \
   -F "audio_file=@./audio/test_audio.wav"
 ```
 
-#### Production Cluster Setup
+### Production Cluster Setup
 
 1. **Cluster Prerequisites**
 - Multiple nodes with CUDA-compatible GPUs
 - Network connectivity between nodes
-- Shared filesystem access across nodes (e.g., NFS mount at `/shared/models`)
 - Python environment with Ray installed on all nodes
 
-2. **Environment Setup**
+
+2. **Start the cluster in AWS**
 ```bash
-# On head node
-ray start --head
-export RAY_DASHBOARD_ADDRESS="http://<head-node-ip>:8265"
-
-# On worker nodes
-ray start --address='<head-node-ip>:6379'
+ray up cluster.yaml --no-config-cache 
 ```
 
-3. **Shared Storage Setup**
+> **After the head node is setup**
+
+3. **To monitor nodes autoscaling**
 ```bash
-# Ensure model directory exists and is accessible
-mkdir -p /shared/models
-chmod -R 755 /shared/models
-
-# Verify on all nodes
-ls -la /shared/models
+ray exec /home/marco/Development/mglabs/stt-server/cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
 ```
 
-4. **Service Deployment**
+4. **To prepare for application deployment and testing**
 ```bash
-# Deploy using production configuration
-serve deploy config/serve_config_prod.yaml -a $RAY_DASHBOARD_ADDRESS
+export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS 
+export RAY_DASHBOARD_ADDRESS="http://$RAY_HEAD_ADDRESS:8265"; echo $RAY_DASHBOARD_ADDRESS
 ```
 
-### Configuration Files
-
-1. **Local Configuration** (config/serve_config_local.yaml)
-```yaml
-applications:
-  - name: whisper_service
-    route_prefix: /
-    import_path: main:app
-    runtime_env:
-      working_dir: "."
-      py_modules: ["whisper_serve"]
-    deployments:
-      - name: WhisperTranscriber
-        num_replicas: 2
-        ray_actor_options:
-          num_cpus: 2
-          num_gpus: 1.0
+5. ***Access the dashboard in a browser***
+```bash
+http://$RAY_HEAD_ADDRESS:8265
 ```
 
-2. **Production Configuration** (config/serve_config_prod.yaml)
-```yaml
-applications:
-  - name: whisper_service
-    route_prefix: /
-    import_path: main:app
-    runtime_env:
-      working_dir: "."
-      py_modules: ["whisper_serve"]
-      env_vars:
-        PYTHONPATH: "/path/to/whisper-serve"
-    deployments:
-      - name: WhisperTranscriber
-        num_replicas: 4
-        ray_actor_options:
-          num_cpus: 2
-          num_gpus: 1.0
+> **After the workers are setup**
+
+1. **Set up the workload for remote deployment**
+```bash
+cd whisper_serve
+zip -r whisper_serve.zip *.py
+aws s3 cp whisper_serve.zip s3://ntoplabs-0001
 ```
+> Ensure the rights on the S3 bucket - name is not important
+
+2. **Start the worload**
+```bash
+serve deploy serve_config.yaml -a $RAY_DASHBOARD_ADDRESS
+serve status -a $RAY_DASHBOARD_ADDRESS
+```
+
+3. **Test the transcription endpoint**
+```bash
+curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe \
+  -F "audio_file=@./audio/test_audio.wav"
+```
+
+4. **Log into the head node**
+```bash
+ray attach cluster.yaml
+```
+
+5. **Terminate the cluster**
+```bash
+ray down cluster.yaml 
+```
+> The termination will remove the data and all the nodes from AWS and cannot be reverted.
+
+
 
 ## API Usage
 
@@ -311,7 +290,7 @@ curl http://localhost:8000/health
 serve status -a $RAY_DASHBOARD_ADDRESS
 ```
 
-2. **Resource Verification**
+2. **Resource Verification (on nodes)**
 ```bash
 # Check GPU status
 nvidia-smi
@@ -320,27 +299,6 @@ nvidia-smi
 ray status
 ```
 
-3. **Common Issues**
-- Service unhealthy: Check logs for initialization errors
-- GPU not available: Verify CUDA setup and GPU allocation
-- Model loading fails: Check shared storage access
-- High latency: Monitor resource utilization in dashboard
-
-## Performance Benchmarks
-
-### Load Test Results (NVIDIA A10G GPU)
-| Concurrency | Avg Latency (s) | P95 Latency (s) | Error Rate (%) |
-|-------------|----------------|----------------|----------------|
-| 4           | 0.61          | 0.00          | 0.0           |
-| 8           | 0.93          | 0.00          | 0.0           |
-| 16          | 0.85          | 0.00          | 0.0           |
-| 32          | 1.11          | 1.99          | 0.0           |
-| 64          | 2.38          | 4.20          | 0.0           |
-| 128         | 4.31          | 8.03          | 0.0           |
-| 192         | 6.87          | 12.88         | 0.0           |
-| 256         | 9.04          | 16.88         | 0.0           |
-| 512         | 17.63         | 33.19         | 0.0           |
-
 ## License
 
 Proprietary software. Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
@@ -348,5 +306,3 @@ Proprietary software. Copyright (c) 2024 Graziano Labs Corp. All rights reserved
 ## Contact
 
 Marco Graziano - marco@graziano.com
-
-Project Link: [https://github.com/marcoeg/whisper-serve](https://github.com/marcoeg/whisper-serve)

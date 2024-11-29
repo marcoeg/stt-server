@@ -10,5 +10,5 @@ logger = logging.getLogger("WhisperService")
 app = FastAPI()
 
 # Define the deployments
-transcriber = WhisperTranscriber.bind(model_size="base")  # Remove the ()
-app = WhisperAPI.bind(transcriber=transcriber)  # Add the parameter name explicitly
+transcriber = WhisperTranscriber.bind(model_size="large")  
+app = WhisperAPI.bind(transcriber=transcriber) 

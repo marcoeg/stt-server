@@ -146,7 +146,7 @@ curl -X POST http://localhost:8000/transcribe \
 - Python environment with Ray installed on all nodes
 
 
-2. **Start the cluster in AWS**
+2. **Launch the cluster in AWS**
 ```bash
 ray up cluster.yaml --no-config-cache 
 ```

@@ -91,11 +91,11 @@ async def main():
     # Model configurations to test
     configs = [
         #{"model_size": "tiny", "language": "en"},
-        #{"model_size": "base", "language": "en"},
+        {"model_size": "base", "language": "en"},
         # Uncomment to test other configurations
         # {"model_size": "small", "language": "en"},
         # {"model_size": "medium", "language": "en"},
-        {"model_size": "large", "language": "en"},
+        #{"model_size": "large", "language": "en"},
     ]
 
     for config in configs:

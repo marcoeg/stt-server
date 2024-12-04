@@ -28,7 +28,7 @@ image = (
 
 @app.cls(
     image=image,
-    gpu="H100",
+    gpu="a10g",
     container_idle_timeout=300
 )
 class WhisperModel:

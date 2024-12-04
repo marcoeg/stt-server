@@ -11,7 +11,7 @@ import os
 global ENDPOINT
 
 #ENDPOINT = "http://" + os.getenv("RAY_HEAD_ADDRESS", "localhost") + ":8000/transcribe"
-ENDPOINT = "https://marcoeg--whisper-transcription-transcribe.modal.run"
+ENDPOINT = "https://marcoeg--whisper-transcription-optimized-transcribe.modal.run"
 
 @dataclass
 class TestResult:
@@ -91,11 +91,11 @@ async def main():
     # Model configurations to test
     configs = [
         #{"model_size": "tiny", "language": "en"},
-        {"model_size": "base", "language": "en"},
+        #{"model_size": "base", "language": "en"},
         # Uncomment to test other configurations
         # {"model_size": "small", "language": "en"},
         # {"model_size": "medium", "language": "en"},
-        #{"model_size": "large", "language": "en"},
+        {"model_size": "large", "language": "en"},
     ]
 
     for config in configs:

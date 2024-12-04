@@ -414,3 +414,5 @@ curl -X POST \
   -F "audio_file=@/home/marco/Development/mglabs/stt-server/audio/test_audio.wav" \
   -F "model_size=base" \
   -F "language=en"
+
+  (venv-3.9) marco@genai:~/Development/mglabs/stt-server/modal$ modal deploy whisper_app.py

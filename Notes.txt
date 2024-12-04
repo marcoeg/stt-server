@@ -404,3 +404,13 @@ Concurrency Avg Latency  P95 Latency  Error Rate
 192        2.28........ 3.54........ 0.0.......%
 256        2.82........ 4.49........ 0.0.......%
 512        4.86........ 8.60........ 0.0.......%
+
+-------------------
+
+"/home/marco/Development/mglabs/stt-server/audio/test_audio.wav"
+
+curl -X POST \
+  https://marcoeg--whisper-transcription-transcribe.modal.run \
+  -F "audio_file=@/home/marco/Development/mglabs/stt-server/audio/test_audio.wav" \
+  -F "model_size=base" \
+  -F "language=en"

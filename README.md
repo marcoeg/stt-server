@@ -59,6 +59,7 @@ Details on the AWS setup are in the aws directory [README file.](./aws/README.md
 ├── requirements.txt      # Project dependencies
 ├── cluster.yaml          # Cluster launch setup
 └── serve_config.yaml     # Ray whisper_serv configuration
+└── serve_config.local.yaml     # Ray whisper_serv configuration
 ```
 
 ## Requirements
@@ -77,34 +78,7 @@ The project requires several key packages:
 - Additional utilities for audio processing and API handling
 
 ## Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/marcoeg/whisper-serve.git
-
-```
-
-2. Create and activate a virtual environment:
-```bash
-python3.9 -m venv venv
-source venv/bin/activate  
-```
-
-3. Install dependencies:
-```bash
-# Install OpenAI Whisper
-pip install openai-whisper
-
-# Install other requirements
-pip install -r requirements.txt
-
-# Install Ray with Serve components
-pip install -U "ray[default,serve]"
-
-```
-
-## Configuration
-
+Follow the steps in [INSTALL.md](INSTALL.md) to set up the environment and deploy.
 
 ## Ray Serve Deployment
 
@@ -118,7 +92,7 @@ ray start --head
 # Set dashboard address
 export RAY_DASHBOARD_ADDRESS="http://127.0.0.1:8265"
 
-# Optional: Set PYTHONPATH if needed
+# Optional: Set PYTHONPATH -- only needed when running from a different directory
 export PYTHONPATH="/path/to/whisper-serve"
 ```
 
@@ -235,22 +209,6 @@ Response format:
 }
 ```
 
-### Health Check
-Endpoint: `GET /health`
-
-```bash
-curl http://localhost:8000/health
-```
-
-Response:
-```json
-{
-    "status": "healthy",
-    "deployments": {
-        "WhisperTranscriber": "HEALTHY"
-    }
-}
-```
 
 ## Monitoring and Management
 
@@ -283,8 +241,9 @@ tail -f whisper_service.log
 
 1. **Service Health**
 ```bash
-# Check service health
-curl http://localhost:8000/health
+# Check service health in the Ray dashboard
+http://127.0.0.1:8265/
+
 
 # Check deployment status
 serve status -a $RAY_DASHBOARD_ADDRESS

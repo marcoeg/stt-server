@@ -1,43 +1,32 @@
+runtime_env:
+  working_dir: .
+  env_vars:
+    RAY_SERVE_REQUEST_PROCESSING_TIMEOUT_S: "3600"
+    RAY_SERVE_HTTP_PROXY_TIMEOUT_S: "3600"
+    #PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"   # <<< DO NOT FORGET THIS!!!
+    PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True,max_split_size_mb:128" 
 
-proxy_location: EveryNode
-
-http_options:
-  host: 0.0.0.0
-  port: 8000
-  
 applications:
-- name: default
-  route_prefix: /
-  import_path: main:app
-  runtime_env:
-    pip:
-      - torch
-      - transformers
-      - fastapi
-      - python-multipart
-  deployments:
-  - name: WhisperTranscriber
-    max_outgoing_requests: 25
-    autoscaling_config:
-      target_outgoing_requests: 10
-      min_replicas: 8
-      max_replicas: 25
-      upscale_delay_s: 10
-      downscale_delay_s: 30
-      upscale_batch_size: 2  # Only addition: control scaling batch size
-    ray_actor_options:
-      num_cpus: 1
-      num_gpus: 0.037
-      memory: 2000_000_000
-      runtime_env:
-        env_vars:
-          CUDA_VISIBLE_DEVICES: "0"
-  - name: WhisperAPI
-    max_outgoing_requests: 30
-    autoscaling_config:
-      target_outgoing_requests: 12
-      min_replicas: 8
-      max_replicas: 30
-    ray_actor_options:
-      num_cpus: 1
-      memory: 2000_000_000
+  - name: default
+    route_prefix: /
+    import_path: whisper_serve.main:root_app
+    args:
+      whisper_model_args:
+        model_size: base
+      llama_model_args:
+        model_path: shuyuej/Llama-3.2-1B-Instruct-GPTQ
+    deployments:
+      - name: WhisperTranscriber
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 2
+          num_gpus: 0.5
+      - name: Llama3Inference
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 2
+          num_gpus: 0.5
+      - name: RootApp
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 1

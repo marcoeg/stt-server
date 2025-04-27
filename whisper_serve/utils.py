@@ -19,7 +19,7 @@ import tempfile
 from typing import Optional
 import numpy as np
 import whisper
-from logger import logger
+from .logger import logger
 
 def load_audio(file_content: bytes) -> Optional[np.ndarray]:
     """Load audio using whisper's built-in function"""

@@ -36,8 +36,8 @@ applications:
     max_outgoing_requests: 30
     autoscaling_config:
       target_outgoing_requests: 12
-      min_replicas: 8
-      max_replicas: 30
+      min_replicas: 2
+      max_replicas: 8
     ray_actor_options:
       num_cpus: 1
       memory: 2000_000_000

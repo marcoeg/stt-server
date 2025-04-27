@@ -416,3 +416,317 @@ curl -X POST \
   -F "language=en"
 
   (venv-3.9) marco@genai:~/Development/mglabs/stt-server/modal$ modal deploy whisper_app.py
+
+
+---
+
+Yes, the Ray cluster you described (1 `c5.2xlarge` head node and 2 `g5.2xlarge` worker nodes) can absolutely provide inference for an open-source large language model (LLM) alongside Whisper speech-to-text, using Ray’s distributed computing capabilities. Here’s how and why it’s feasible, along with some considerations:
+
+---
+
+### Why It Works
+1. **Ray’s Flexibility**:
+   - Ray is designed for distributed task execution and supports both CPU- and GPU-based workloads. It can handle Whisper (speech-to-text) and LLM inference (text generation) simultaneously by distributing tasks across the cluster.
+   - Ray’s **actors** (stateful workers) and **tasks** (stateless functions) can manage model inference, allowing you to load Whisper on one set of resources and an LLM on another, or even share resources dynamically.
+
+2. **Hardware Suitability**:
+   - **Head Node (`c5.2xlarge`)**: 8 vCPUs, 16 GB RAM, no GPU. Suitable for coordination, preprocessing (e.g., audio/text tokenization), and lightweight tasks. It can run Ray’s scheduler and serve as the entry point.
+   - **Worker Nodes (2 `g5.2xlarge`)**: Each has 8 vCPUs, 32 GB RAM, and an NVIDIA A10G GPU (24 GB VRAM). The GPUs are critical for accelerating both Whisper (ASR) and LLM inference, as both benefit from GPU parallelism.
+   - The A10G’s 24 GB VRAM can handle medium-sized LLMs (e.g., 7B–13B parameters) for inference, depending on quantization (e.g., 4-bit or 8-bit), alongside Whisper models (e.g., Whisper Large, ~1.5 GB).
+
+3. **Workload Compatibility**:
+   - **Whisper**: OpenAI’s Whisper models (e.g., `large-v3`) are GPU-accelerated for real-time or batch transcription. With low traffic (100 hours/month), it uses minimal GPU time.
+   - **LLM Inference**: Open-source LLMs like LLaMA, Mistral, or Falcon can run inference on GPUs. Ray can distribute requests across the `g5.2xlarge` nodes, leveraging their A10G GPUs.
+   - Both workloads are inference-based (not training), which aligns with the cluster’s compute and memory capacity.
+
+4. **Ray Serve**:
+   - Ray Serve, a scalable model-serving library, can deploy both Whisper and an LLM as separate endpoints (e.g., `/whisper` for ASR, `/llm` for text generation) on the same cluster. It handles routing, scaling, and resource allocation.
+
+---
+
+### Feasibility Assessment
+- **Resource Sharing**:
+  - Each `g5.2xlarge` has 24 GB GPU VRAM. Whisper Large (~1.5 GB) and a 7B-parameter LLM (e.g., ~5–7 GB with 4-bit quantization) can fit on one GPU simultaneously, leaving room for batch processing.
+  - With 2 workers, you could dedicate one `g5.2xlarge` to Whisper and the other to the LLM, or share both models across both GPUs for load balancing.
+- **Throughput**: 
+  - Whisper: 100 hours/month (~3.3 hours/day) is low traffic, leaving ample GPU cycles.
+  - LLM: Depends on request rate, but a 7B model on an A10G can handle ~10–20 tokens/second for inference, sufficient for low-to-moderate traffic (e.g., chatbot or text completion).
+- **CPU/RAM**: The `c5.2xlarge` head node and `g5.2xlarge` workers have enough CPU/RAM (8 vCPUs, 16–32 GB) for preprocessing, tokenization, and Ray’s overhead.
+
+---
+
+### Implementation with Ray
+1. **Model Loading**:
+   - Use Ray actors to instantiate Whisper and the LLM on the `g5.2xlarge` GPUs. Example:
+     ```python
+     import ray
+     from transformers import WhisperProcessor, WhisperForConditionalGeneration, AutoModelForCausalLM, AutoTokenizer
+
+     @ray.remote(num_gpus=1)
+     class WhisperActor:
+         def __init__(self):
+             self.processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
+             self.model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3").to("cuda")
+
+         def transcribe(self, audio):
+             inputs = self.processor(audio, return_tensors="pt").to("cuda")
+             return self.model.generate(**inputs)
+
+     @ray.remote(num_gpus=1)
+     class LLMActor:
+         def __init__(self):
+             self.tokenizer = AutoTokenizer.from_pretrained("mistralai/Mixtral-7B-v0.1")
+             self.model = AutoModelForCausalLM.from_pretrained("mistralai/Mixtral-7B-v0.1", load_in_4bit=True).to("cuda")
+
+         def generate(self, prompt):
+             inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
+             return self.model.generate(**inputs)
+     ```
+2. **Deployment with Ray Serve**:
+   - Serve both models as endpoints:
+     ```python
+     from ray import serve
+
+     serve.start()
+     serve.deployment(WhisperActor).options(num_replicas=1).deploy()
+     serve.deployment(LLMActor).options(num_replicas=1).deploy()
+     ```
+   - Access via HTTP or Python client, e.g., `curl http://<head-ip>:8000/whisper` or `ray.get(whisper_actor.transcribe.remote(audio))`.
+
+3. **Resource Allocation**:
+   - Ray automatically assigns tasks to available GPUs. You can pin actors to specific nodes or let Ray load-balance.
+
+---
+
+### Considerations
+1. **VRAM Limits**:
+   - A 13B LLM with 4-bit quantization (~10–12 GB) plus Whisper (~1.5 GB) might push the A10G’s 24 GB VRAM limit. Test your LLM size (e.g., stick to 7B models like Mistral-7B if co-running).
+2. **Traffic**:
+   - Low Whisper traffic leaves room, but high LLM traffic (e.g., thousands of requests/day) might require a third `g5.2xlarge` or request batching.
+3. **Latency**:
+   - Whisper and LLM inference on A10G GPUs are fast (e.g., <1s for short audio/text), but shared GPU usage might add minor delays. Profile with your workload.
+4. **Cost**:
+   - No additional hardware cost since the cluster supports both. The $2,043.64 (on-demand) or $1,359.02 (reserved) monthly estimate from my last report holds.
+
+---
+
+### Conclusion
+Yes, your cluster can handle both Whisper and an open-source LLM for inference using Ray, leveraging the `g5.2xlarge` GPUs for acceleration. Start with a 7B-parameter LLM (e.g., Mistral-7B) to ensure VRAM compatibility, and use Ray Serve for deployment. If LLM traffic scales, consider adding a worker node or optimizing with quantization. Want help picking an LLM or setting this up? Let me know!
+
+
+-----------
+
+Local deployment
+📓 How to Start Local Ray Serve for Whisper_serve
+1. Start Ray cluster locally
+
+ray start --head
+This starts a local Ray cluster.
+
+It prints something like:
+
+Local node IP: 127.0.0.1
+Dashboard: http://127.0.0.1:8265
+
+2. Set your Ray dashboard address
+
+export RAY_DASHBOARD_ADDRESS="http://127.0.0.1:8265"
+
+3. Set your project root to the folder containing whisper_serve
+
+cd /home/marco/Development/mglabs/stt-server
+export PYTHONPATH="$(pwd)"
+(⚡ This makes sure Ray Serve finds whisper_serve as a Python package.)
+
+4. Fix local imports to be relative (already done ✅)
+In whisper_serve/main.py, always use:
+
+python
+from .models import WhisperTranscriber
+from .api import WhisperAPI
+from .logger import logger
+
+5. Deploy the server
+
+serve deploy serve_config.local.yaml -a $RAY_DASHBOARD_ADDRESS
+
+You will see a success message if deployment works.
+
+Check with:
+
+serve status -a $RAY_DASHBOARD_ADDRESS
+
+
+Stop ray:
+ray stop --force
+
+----
+
+source venv-3.9/bin/activate
+pip install --upgrade pip
+pip install ray[serve] ray[default] vllm torch transformers fastapi python-multipart accelerate
+pip install openai-whisper
+
+🛠️ How to Install pyenv (Ubuntu/Linux)
+Install system dependencies
+
+These are required so that pyenv can build different Python versions properly:
+
+bash
+Copy
+Edit
+sudo apt-get update
+sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
+libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev git
+✅ This ensures all necessary libraries (including bz2) are there.
+
+Install pyenv itself
+
+Use the official installer script:
+
+bash
+Copy
+Edit
+curl https://pyenv.run | bash
+✅ This installs pyenv, pyenv-virtualenv, and pyenv-update automatically.
+
+Configure your shell
+
+Add the following lines to your shell configuration file:
+
+If you use bash:
+
+bash
+Copy
+Edit
+echo -e '\n# pyenv setup\nexport PATH="$HOME/.pyenv/bin:$PATH"\neval "$(pyenv init --path)"\neval "$(pyenv init -)"\neval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+source ~/.bashrc
+If you use zsh:
+
+bash
+Copy
+Edit
+echo -e '\n# pyenv setup\nexport PATH="$HOME/.pyenv/bin:$PATH"\neval "$(pyenv init --path)"\neval "$(pyenv init -)"\neval "$(pyenv virtualenv-init -)"' >> ~/.zshrc
+source ~/.zshrc
+✅ This makes pyenv available automatically every time you open a terminal.
+
+Verify pyenv is working
+
+Close and reopen your terminal or do:
+
+bash
+Copy
+Edit
+exec "$SHELL"
+Then run:
+
+bash
+Copy
+Edit
+pyenv --version
+✅ You should see something like:
+
+nginx
+Copy
+Edit
+pyenv 2.3.23
+🚀 How to install Python with pyenv
+Once pyenv is ready:
+
+bash
+Copy
+Edit
+pyenv install 3.9.18
+pyenv global 3.9.18
+✅ This will download, build, and set Python 3.9.18 as your default version.
+
+✅ bz2, lzma, and everything else will be properly built.
+
+Check:
+
+bash
+Copy
+Edit
+python --version
+# Python 3.9.18
+
+python -c "import bz2; print('bz2 available ✅')"
+# bz2 available ✅
+
+
+---
+
+Step 1: Force pyenv Python
+Manually:
+
+bash
+Copy
+Edit
+pyenv shell 3.9.18
+or even stronger:
+
+bash
+Copy
+Edit
+pyenv local 3.9.18
+This forces the shell to use pyenv's Python 3.9.18.
+
+✅ Check again:
+
+bash
+Copy
+Edit
+which python
+python --version
+python -c "import bz2; print('bz2 available ✅')"
+Step 2: Recreate venv with good Python
+VERY IMPORTANT:
+⚡ You must delete the broken venv and rebuild it from clean pyenv Python.
+
+From your project root:
+
+bash
+Copy
+Edit
+rm -rf venv-3.9
+python -m venv venv-3.9
+source venv-3.9/bin/activate
+pip install --upgrade pip
+pip install ray[serve] ray[default] torch transformers fastapi python-multipart accelerate vllm openai-whisper
+✅ Now python inside venv should be the pyenv's 3.9.18 version.
+
+✅ import bz2 will succeed.
+
+
+python3.9 -m venv venv-3.9
+source venv-3.9/bin/activate
+pip install --upgrade pip
+pip install "ray[serve]"==2.9.3
+pip install torch transformers fastapi python-multipart vllm==0.4.0 openai-whisper
+
+
+python -c "import ray; print(ray.__version__)"
+
+--
+ curl  -X POST http://127.0.0.1:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Write a short motivational quote."}'
+
+
+---
+  sampling_params = SamplingParams(
+      temperature=0.1,
+      top_p=0.9,
+      max_tokens=200,  # Add a limit
+      repetition_penalty=1.1,  # Penalize repeated outputs
+  )
+
+curl -X POST http://127.0.0.1:8000/transcribe   -F "audio_file=@/home/marco/Documents/PromptBet/downloads/0d19cb7a-1b12-45ea-b1ac-fbbb06f986a7_stream.wav"
+curl -X POST http://127.0.0.1:8000/transcribe   -F "audio_file=@/home/marco/Documents/PromptBet/downloads/2a17f9fd-da2b-4ce0-a4ae-47d1d5faf6a8_stream.wav"
+curl -X POST http://127.0.0.1:8000/transcribe   -F "audio_file=@/home/marco/Documents/PromptBet/downloads/2c282e43-acdc-4da3-8bc9-795074fbe027_stream.wav"
+curl -X POST http://127.0.0.1:8000/transcribe   -F "audio_file=@/home/marco/Documents/PromptBet/downloads/2f74c965-4e35-401f-9ec3-137b58287777_stream.wav"
+curl -X POST http://127.0.0.1:8000/transcribe   -F "audio_file=@/home/marco/Documents/PromptBet/downloads/3db4dbb1-115d-4052-8293-1616df01f0b5_stream.wav" curl -X POST http://127.0.0.1:8000/transcribe   -F "audio_file=@/home/marco/Documents/PromptBet/downloads/0d19cb7a-1b12-45ea-b1ac-fbbb06f986a7_stream.wav"
+
+curl -X POST http://127.0.0.1:8000/generate   -H "Content-Type: application/json"   -d '{"prompt": "Write a short motivational quote."}'
+curl -X POST http://127.0.0.1:8000/generate   -H "Content-Type: application/json"   -d '{"prompt": "Why the sky is blue?"}'

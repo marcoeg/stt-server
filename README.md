@@ -18,18 +18,6 @@ Whisper Serve provides a production-ready REST API for speech-to-text transcript
 For more information about OpenAI Whisper:
 https://github.com/openai/whisper/tree/main
 
-## AWS Infrastructure
-
-This infrastructure is designed for a Ray cluster deployment in AWS, with the following key components:
-
-- VPC with public subnet
-- Security groups for cluster communication
-- IAM roles and policies for Ray autoscaling
-- EFS integration for shared storage
-- Deep Learning AMI base configuration
-
-Details on the AWS setup are in the aws directory [README file.](./aws/README.md)
-
 ## Project Structure
 
 ```
@@ -37,11 +25,7 @@ Details on the AWS setup are in the aws directory [README file.](./aws/README.md
 ├── audio/                  # Test audio files
 │   └── test_audio.wav
 |   ├── test_audio10.wav
-|   └── test_audio30.wav
-├── aws/                   # AWS Setup and Configuration 
-│   ├── scripts/           # Configuration and audit
-│   ├── setup/             # Cluster deployment scripts
-│   └── README.md   
+|   └── test_audio30.wav 
 ├── models/               # Whisper models cache 
 │   ├── base.pt           
 │   └── large.pt         
@@ -54,11 +38,9 @@ Details on the AWS setup are in the aws directory [README file.](./aws/README.md
 │   └── utils.py          # Utility functions
 ├── tests/                # Test suite
 │   ├── load_test.py      # Cluster load test
-│   └── Results.txt       # Results file
+│   └── combo_load_test.py    # Combo test
 ├── README.md             # Project documentation
 ├── requirements.txt      # Project dependencies
-├── cluster.yaml          # Cluster launch setup
-└── serve_config.yaml     # Ray whisper_serv configuration
 └── serve_config.local.yaml     # Ray whisper_serv configuration
 ```
 
@@ -111,71 +93,6 @@ serve status -a $RAY_DASHBOARD_ADDRESS
 curl -X POST http://localhost:8000/transcribe \
   -F "audio_file=@./audio/test_audio.wav"
 ```
-
-### Production Cluster Setup
-
-1. **Cluster Prerequisites**
-- Multiple nodes with CUDA-compatible GPUs
-- Network connectivity between nodes
-- Python environment with Ray installed on all nodes
-
-
-2. **Launch the cluster in AWS**
-```bash
-ray up cluster.yaml --no-config-cache 
-```
-
-> **After the head node is setup**
-
-3. **To monitor nodes autoscaling**
-```bash
-ray exec /home/marco/Development/mglabs/stt-server/cluster.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
-```
-
-4. **To prepare for application deployment and testing**
-```bash
-export RAY_HEAD_ADDRESS=$(ray get-head-ip cluster.yaml | tail -n 1); echo $RAY_HEAD_ADDRESS 
-export RAY_DASHBOARD_ADDRESS="http://$RAY_HEAD_ADDRESS:8265"; echo $RAY_DASHBOARD_ADDRESS
-```
-
-5. ***Access the dashboard in a browser***
-```bash
-http://$RAY_HEAD_ADDRESS:8265
-```
-
-> **After the workers are setup**
-
-1. **Set up the workload for remote deployment**
-```bash
-cd whisper_serve
-zip -r whisper_serve.zip *.py
-aws s3 cp whisper_serve.zip s3://ntoplabs-0001
-```
-> Ensure the rights on the S3 bucket - name is not important
-
-2. **Start the worload**
-```bash
-serve deploy serve_config.yaml -a $RAY_DASHBOARD_ADDRESS
-serve status -a $RAY_DASHBOARD_ADDRESS
-```
-
-3. **Test the transcription endpoint**
-```bash
-curl -X POST http://$RAY_HEAD_ADDRESS:8000/transcribe \
-  -F "audio_file=@./audio/test_audio.wav"
-```
-
-4. **Log into the head node**
-```bash
-ray attach cluster.yaml
-```
-
-5. **Terminate the cluster**
-```bash
-ray down cluster.yaml 
-```
-> The termination will remove the data and all the nodes from AWS and cannot be reverted.
-
 
 
 ## API Usage

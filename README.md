@@ -1,22 +1,32 @@
 # Whisper Serve
 
-A distributed speech-to-text service using OpenAI's Whisper model, built with Ray Serve for scalable deployment.
+A distributed speech-to-text service using OpenAI's Whisper and Meta's LLma3 models, built with Ray Serve for scalable deployment.
 
 Author: Marco Graziano (marco@graziano.com)  
 Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
 
 ## Overview
 
-Whisper Serve provides a production-ready REST API for speech-to-text transcription using OpenAI's Whisper model. Built on Ray Serve, it offers:
+This project deploys:
+- **Whisper** (speech-to-text) via OpenAI Whisper models
+- **Llama3** (text generation) via HuggingFace + vLLM
+- Served via **Ray Serve** with GPU acceleration
+
+This project provides a production-ready REST API for speech-to-text transcription and text generation using Whisper and LLama3 open source models. Built on Ray Serve, it offers:
 - Distributed processing with automatic resource management
 - Configurable deployment options
 - Production-ready logging and monitoring
 - Efficient model management and caching
 - RESTful API interface
-- Health monitoring endpoints
+
 
 For more information about OpenAI Whisper:
 https://github.com/openai/whisper/tree/main
+
+> [NOTE!]
+> The server runs Whisper and LLama3 on the same GPU or GPU cluster in AWS.
+
+
 
 ## Project Structure
 
@@ -126,6 +136,31 @@ Response format:
 }
 ```
 
+### Prompt LLama3
+Endpoint: `POST /generate`
+
+Generates text based on a provided prompt using the Llama model. The endpoint expects a JSON payload in the request body.
+
+```bash
+# Basic usage
+curl -X POST http://localhost:8000/generate \
+     -H "Content-Type: application/json" \
+     -d '{"prompt": "Write a short story about a robot."}'
+```
+
+Response format:
+```json
+{
+    "success": true,
+    "generated_text": "Zeta lived in a small apartment complex where ...",
+    "latency": 1.234,
+    "token_count": 50,
+    "gpu_memory": 0.5,
+    "error": null
+}
+```
+  
+
 
 ## Monitoring and Management
 
@@ -177,7 +212,7 @@ ray status
 
 ## License
 
-Proprietary software. Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
+Licensed under MIT License. Copyright (c) 2024 Graziano Labs Corp. All rights reserved.
 
 ## Contact
 
